@@ -1,4 +1,4 @@
-# Overview and Purpose of Project
+# Overview
 This GitHub project is meant to serve as a basic repository for federated learning on natural images and seismic data.
 
 # Install Environment
