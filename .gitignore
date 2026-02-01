@@ -1,3 +1,73 @@
+# --- Python Basics ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- C extensions ---
+*.so
+
+# --- Distribution / Packaging ---
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Installer logs ---
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Unit Test / Coverage ---
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# --- Virtual Environments ---
+# Common names for virtual envs
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# --- IDEs / Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- macOS (since you are on a Mac) ---
+.DS_Store
+
+# --- Project Specific Data (Large files/folders) ---
 datasets/
 fl-seismic/
-
+*.log
