@@ -70,4 +70,5 @@ venv.bak/
 # --- Project Specific Data (Large files/folders) ---
 datasets/
 fl-seismic/
+results/
 *.log
