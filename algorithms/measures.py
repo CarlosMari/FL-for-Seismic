@@ -101,6 +101,7 @@ def evaluate_model_split(model, dataloader, dataset, device="cuda:0"):
 
 
 @torch.no_grad()
+@torch.no_grad()
 def model_metrics(model, dataloader, previous_acc, dataset, device="cuda:0"):
     """Evaluate NFR for the given dataloader"""
     model.eval()
@@ -114,9 +115,18 @@ def model_metrics(model, dataloader, previous_acc, dataset, device="cuda:0"):
     predictions = []
 
     for data, targets, idx in dataloader:
+        # --- FIX START: Sanitize indices ---
+        # Convert tensor indices to a clean numpy array of integers
+        if isinstance(idx, torch.Tensor):
+            indices = idx.cpu().numpy().astype(int)
+        else:
+            indices = np.array(idx).astype(int)
+        # --- FIX END ---
+
         if dataset == 'olives':
             targets = targets.float()
         data, targets = data.to(device), targets.to(device)
+        
         if (targets.squeeze().detach().cpu().numpy()).ndim < 2:
             t = np.atleast_2d(targets.squeeze().detach().cpu().numpy())
         else:
@@ -135,28 +145,31 @@ def model_metrics(model, dataloader, previous_acc, dataset, device="cuda:0"):
             p = pred.squeeze().detach().cpu().numpy()
         predictions.append(p)
 
-        accuracy = pred.eq(targets.data)
-        delta = np.clip(previous_acc[idx] - accuracy.cpu().numpy(), a_min=0, a_max=1)
+        accuracy = pred.eq(targets.data).cpu().numpy()
+        
+        # Use 'indices' (the clean numpy array) instead of 'idx'
+        delta = np.clip(previous_acc[indices] - accuracy, a_min=0, a_max=1)
         forgets += np.sum(delta)
-        previous_acc[idx] = accuracy.cpu().numpy() # Tensor of False/True if samples matched 'targets' or not
-        #
+        
+        #FIX 
+        previous_acc[indices] = accuracy 
+        # ------------------------
+
         if dataset == 'olives':
-            amount += (data.size(0)*len(targets[0])) # Number of patients * number of options they can have (5 in the case of olives)
+            amount += (data.size(0)*len(targets[0])) 
         else:
             running_correct += (targets == pred).sum().item()
             running_count += data.size(0)
             amount += data.size(0)
 
     # Return previous acc, forgets, and NFR
-    # 'Accuracy' score changes for multilabel
     if dataset == 'olives':
         acc = {}
-        # Report F1 score for multilabel
         acc['macro'] = f1_score(y_true=np.concatenate(gt), y_pred=np.concatenate(predictions), average='macro')
         acc['class'] = f1_score(y_true=np.concatenate(gt), y_pred=np.concatenate(predictions), average=None)
     else:
         acc = round(running_correct / running_count, 4)
-
+    
     return previous_acc, forgets, forgets/amount, acc
 
 @torch.no_grad()
@@ -182,12 +195,19 @@ def model_metrics_glob(model, dataloader, previous_acc, dataset, classes, device
             targets = targets.float()
 
         data, targets = data.to(device), targets.to(device)
+        
+        # Ensure idx is on CPU and is a numpy array of integers
+        if isinstance(idx, torch.Tensor):
+            indices = idx.cpu().numpy().astype(int)
+        else:
+            indices = np.array(idx).astype(int)
 
         if (targets.squeeze().detach().cpu().numpy()).ndim < 2:
             t = np.atleast_2d(targets.squeeze().detach().cpu().numpy())
         else:
             t = targets.squeeze().detach().cpu().numpy()
         gt.append(t)
+        
         logits = model(data)
         cur_targets = np.unique(t)
 
@@ -202,24 +222,29 @@ def model_metrics_glob(model, dataloader, previous_acc, dataset, classes, device
             p = pred.squeeze().detach().cpu().numpy()
         predictions.append(p)
 
-        accuracy = pred.eq(targets.data)
-        delta = np.clip(previous_acc[idx] - accuracy.cpu().numpy(), a_min=0, a_max=1)
-        # go through each class in current batch and see how much has been forgotten per class
-        #print('cur targets: ', cur_targets)
+        accuracy = pred.eq(targets.data).cpu().numpy() # Move to CPU/Numpy once here
+        
+        # Use 'indices' instead of 'idx' to ensure correct slicing
+        delta = np.clip(previous_acc[indices] - accuracy, a_min=0, a_max=1)
+        
         for c in cur_targets:
             i = np.where(t == c)[0]
             amt = np.sum(delta[i])
             amt_forgotten_per_class[c] += amt
             amt_per_class[c] += len(i)
 
-        positive_delta = np.clip(accuracy.cpu().numpy() - previous_acc[idx], a_min=0, a_max=1)
+        positive_delta = np.clip(accuracy - previous_acc[indices], a_min=0, a_max=1)
         forgets += np.sum(delta)
         positive_flips += np.sum(positive_delta)
         tot_flips = np.sum(delta) + np.sum(positive_delta)
-        previous_acc[idx] = accuracy.cpu().numpy() # Tensor of False/True if samples matched 'targets' or not
-        #
+        
+        # --- THE CRITICAL FIX ---
+        # Update the global array using the sanitized numpy indices
+        previous_acc[indices] = accuracy
+        # ------------------------
+
         if dataset == 'olives':
-            amount += (data.size(0)*len(targets[0])) # Number of patients * number of options they can have (5 in the case of olives)
+            amount += (data.size(0)*len(targets[0])) 
             unchanged += (data.size(0)*len(targets[0]) - tot_flips)
         else:
             running_correct += (targets == pred).sum().item()
@@ -237,9 +262,8 @@ def model_metrics_glob(model, dataloader, previous_acc, dataset, classes, device
     else:
         acc = round(running_correct / running_count, 4)
 
-    # print('pos flips: ', positive_flips)
-    # print('negative: ', forgets)
-    # print('unchanged:', unchanged)
+    # Avoid division by zero if a class wasn't seen
+    amt_per_class[amt_per_class == 0] = 1 
     amt_forgotten_per_class = np.divide(amt_forgotten_per_class, amt_per_class)
 
     return previous_acc, forgets, forgets/amount, acc, positive_flips, unchanged, amt_forgotten_per_class
