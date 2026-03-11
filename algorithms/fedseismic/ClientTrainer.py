@@ -3,6 +3,7 @@ import torch
 import os
 import sys
 import copy
+import wandb
 
 from torch import nn
 
@@ -23,7 +24,6 @@ class ClientTrainer(BaseClientTrainer):
         After local training, upload weights to the Server.
         """
         self.criterion = criterion
-        self.criterion = nn.CrossEntropyLoss()
         self.classifier = None
 
     def train(self):
@@ -39,19 +39,23 @@ class ClientTrainer(BaseClientTrainer):
         local_size = 0
 
         for ep in range(self.local_epochs):
-            for i, (img, target) in enumerate(self.trainloader):
+            for i, (img, target, idx) in enumerate(self.trainloader):
                 img = img.to(self.device).type(torch.float)
                 target = target.to(self.device).type(torch.long)
                 output, recon = self.model(img)
+
+                # Get global model logits for weighted loss
+                with torch.no_grad():
+                    dg_logits, _ = self.dg_model(img)
+
                 self.optimizer.zero_grad()
-                #loss = self.criterion(output, target, dg_logits)
-                loss = self.criterion(output, target)
+                loss = self.criterion(output, target, dg_logits)
                 reconstruction_loss = c(recon, img)
                 loss += reconstruction_loss
                 loss.backward()
                 self.optimizer.step()
 
-                local_size += (i*img.size(0))
+                local_size += img.size(0)
 
         local_results = self._get_local_stats(current_client=self.current_client)
 
@@ -82,6 +86,14 @@ class ClientTrainer(BaseClientTrainer):
         local_results["local on local miou"] = miou
         local_results["local on local classwise"] = miou_class
         local_results["local on local classwise tot"] = np.mean(miou_class)
+
+        # Log client-level metrics to wandb
+        wandb.log({
+            f"client_{current_client}/local_miou": miou,
+            f"client_{current_client}/local_nfr": nfr,
+            f"client_{current_client}/local_classwise_avg": np.mean(miou_class),
+        })
+
         return local_results
 
     def _get_dg_logits(self, data):

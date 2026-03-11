@@ -54,11 +54,17 @@ def create_local_test(idxs, amt=0.2):
     net_test = {}
     for c in range(len(idxs)):
         cur_idxs = idxs[c]
-        test_length = int(amt * len(cur_idxs))
-        start = np.random.choice(cur_idxs, size=1, replace=False)[0]
-        start_idx = np.where(cur_idxs == start)[0][0]
-        test_idxs = cur_idxs[start_idx:start_idx + test_length]
-        new_tr_idxs = cur_idxs[np.where(np.isin(cur_idxs, test_idxs, invert=True))[0]]
+        test_length = max(1, int(amt * len(cur_idxs)))  # Ensure at least 1 sample
+        if len(cur_idxs) <= test_length:
+            # If client has too few samples, give them at least 1 for test
+            test_idxs = cur_idxs[:1]
+            new_tr_idxs = cur_idxs[1:]
+        else:
+            # Randomly select a contiguous slice for testing
+            max_start = len(cur_idxs) - test_length
+            start_idx = np.random.randint(0, max_start + 1)
+            test_idxs = cur_idxs[start_idx:start_idx + test_length]
+            new_tr_idxs = np.concatenate([cur_idxs[:start_idx], cur_idxs[start_idx + test_length:]])
         idxs[c] = new_tr_idxs
         net_test[c] = test_idxs
     return idxs, net_test
@@ -83,7 +89,7 @@ def get_dataloader_seismic(root, mode='tr', batch_size=4, dataidxs=None, dataset
                                inline_inds=dataidxs)
         # Create overall dataloader
         dataloader = data.DataLoader(
-            dataset=dataset, batch_size=batch_size, shuffle=True, num_workers=4
+            dataset=dataset, batch_size=batch_size, shuffle=True, num_workers=2
         )
         return dataloader, gt_labels
 
@@ -93,7 +99,7 @@ def get_dataloader_seismic(root, mode='tr', batch_size=4, dataidxs=None, dataset
                                train_status=False, inline_inds=list(np.arange(0, test_seismic1.shape[1])))
         # Create overall dataloader
         dataloader = data.DataLoader(
-            dataset=dataset, batch_size=batch_size, shuffle=False, num_workers=4
+            dataset=dataset, batch_size=batch_size, shuffle=False, num_workers=2
         )
     else:
         test_seismic1, test_seismic2, test_lab1, test_lab2 = test_data(root)
@@ -101,7 +107,7 @@ def get_dataloader_seismic(root, mode='tr', batch_size=4, dataidxs=None, dataset
                                train_status=False, inline_inds=list(np.arange(0, test_seismic2.shape[1])))
         # Create overall dataloader
         dataloader = data.DataLoader(
-            dataset=dataset, batch_size=batch_size, shuffle=False, num_workers=4
+            dataset=dataset, batch_size=batch_size, shuffle=False, num_workers=2
         )
 
     return dataloader

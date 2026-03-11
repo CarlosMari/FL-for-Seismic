@@ -1,11 +1,11 @@
 {
     "data_setups":{
-        "date": "12-24-24",
-        "root": "./data",
-        "base_folder": "/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/BIGandDATA/Federated_Learning",
+        "date": "02-02-26",
+        "root": "./datasets/seismic",
+        "base_folder": "./results/",
         "dataset_name": "seismic",
-        "batch_size": 50,
-        "n_clients": 100,
+        "batch_size": 20,
+        "n_clients": 50,
         "partition": {
             "method": "iid",
             "shard_per_user": 2,
@@ -23,16 +23,16 @@
     "train_setups":{
         "algo": {
             "name": "fedseismic",
-            "params": {}
+            "params": {"beta": 0.5}
         },
         "scenario": {
-            "n_rounds": 100,
+            "n_rounds": 20,
             "sample_ratio": 0.1,
             "local_epochs": 5,
             "device": "cuda:0"
         },
         "model":{
-            "name": "fedavg_cifar",
+            "name": "seismic",
             "params": {}
         },
         "optimizer":{
@@ -43,11 +43,11 @@
             "name": "step",
             "params": {"gamma":0.99, "step_size": 1}
         },
-        "seed": 2020
+        "seed": 1
     },
     "wandb_setups":{
-        "project": "NeurIPS2024",
-        "group": "fedavg",
-        "name": "fedavg"
+        "project": "FL-Seismic",
+        "group": "fedseismic",
+        "name": "fedseismic_baseline"
     }
 }

@@ -148,6 +148,7 @@ def data_distributer(
         "global": global_loaders,
         "local": local_loaders,
         "num_classes": num_classes,
+        "root_path": root,
     }
 
     return data_distributed

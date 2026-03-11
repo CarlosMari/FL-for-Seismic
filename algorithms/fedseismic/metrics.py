@@ -15,26 +15,31 @@ def eval_model(model, data_loader, previous_acc, round_idx, save_file=None, devi
     else:
         prediction = np.array([])
 
+    sample_idx = 0  # Track actual sample index across batches
     with torch.no_grad():
-        for i, (image, target) in enumerate(data_loader):
+        for i, (image, target, idx) in enumerate(data_loader):
             image = image.to(device).type(torch.float)
             target = target.to(device).type(torch.long)
             output, recon = model(image)
-            # Save predicted output for current image
-            prediction[:, i, :] = output.argmax(1).detach().cpu().numpy().T.squeeze()
-            # figure out how many pixels switched from current class to incorrect class after update
-            pred_labels = output.argmax(1).detach().cpu().numpy().T.squeeze()
-            prev_state = previous_acc[:, i, :]
-            label = target.detach().cpu().numpy().squeeze().T
-            # no forgets in round 0
-            if round_idx != 0:
-                mask = (pred_labels != label) & (prev_state == label)
-                num_forgets = np.count_nonzero(mask)
-                total_forgets += num_forgets
-            else:
-                total_forgets += 0
-            # count total # of pixels in image to get NFR
-            amount += (image.shape[-1] * image.shape[-2])
+
+            batch_size = image.size(0)
+            # Save predicted output for current batch
+            for b in range(batch_size):
+                prediction[:, sample_idx, :] = output[b].argmax(0).detach().cpu().numpy().T
+                # figure out how many pixels switched from current class to incorrect class after update
+                pred_labels = output[b].argmax(0).detach().cpu().numpy().T
+                prev_state = previous_acc[:, sample_idx, :]
+                label = target[b].detach().cpu().numpy().T
+                # no forgets in round 0
+                if round_idx != 0:
+                    mask = (pred_labels != label) & (prev_state == label)
+                    num_forgets = np.count_nonzero(mask)
+                    total_forgets += num_forgets
+                else:
+                    total_forgets += 0
+                # count total # of pixels in image to get NFR
+                amount += (image.shape[-1] * image.shape[-2])
+                sample_idx += 1
 
     mean_iou = jaccard_score(test_labels.flatten(), prediction.flatten(), labels=list(range(6)), average='weighted')
     mean_iou_class = jaccard_score(test_labels.flatten(), prediction.flatten(), labels=list(range(6)), average=None)

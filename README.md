@@ -16,7 +16,7 @@ We are easily able to set these parameters using this codebase.
 For instance, say we want to run the ```FedAvg``` algorithm. We can set up a bash script to contain this line:
 
 ```
-python3 [path-to-repo-location]/main.py --seed=1 --partition_method="dirichlet" --partition_alpha=0.1 --n_rounds=200 --batch_size=50 --n_clients=100 --root='path-to-dataset' --dataset_name='cifar10' --model_name='fedavg_cifar' --base_folder='path-to-results-folder' --root_path='path-to-your-FL-repo' --sample_ratio=0.1 --date='enter-date-here' --config_path="/config/fedavg.json"
+python3 [path-to-repo-location]/main.py --seed=1 --partition_method="dirichlet" --partition_alpha=0.1 --n_rounds=10 --batch_size=50 --n_clients=100 --root='path-to-dataset' --dataset_name='seismic' --model_name='fedseismic' --base_folder='.results/' --root_path='./' --sample_ratio=0.1 --date='02-01-26' --config_path="/config/fedseismic.json"
 ```
 
 In the above example, ```--sample_ratio``` is the percentage of clients sampled each round. ```--n_rounds``` is the number of total communication rounds.
