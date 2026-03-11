@@ -136,13 +136,22 @@ Higher mu is strictly worse. Proximal regularization over-constrains local updat
 
 ### Client Subsampling (FedAvg, Non-IID 20 clients, Parihaka)
 
+**Parihaka (Non-IID, 20 clients)**
+
 | Sample Ratio | Clients/Round | Best mIoU | Class 4 | Class 5 | vs Full (0.514) |
 |-------------|---------------|-----------|---------|---------|-----------------|
 | 1.0 (all)   | 20/20         | 0.514     | 0.122   | 0.000   | —               |
 | 0.5          | 10/20         | 0.543     | 0.254   | 0.000   | +0.029          |
 | 0.25         | 5/20          | **0.569** | **0.308** | 0.000 | **+0.055**      |
 
-Client subsampling is the most effective simple mitigation: +10.7% mIoU, class 4 IoU more than doubles.
+**F3 (Non-IID, 20 clients)**
+
+| Sample Ratio | Clients/Round | Best mIoU | Class 4 | Class 5 | vs Full (0.579) |
+|-------------|---------------|-----------|---------|---------|-----------------|
+| 1.0 (all)   | 20/20         | 0.579     | 0.134   | 0.000   | —               |
+| 0.25         | 5/20          | **0.594** | **0.223** | 0.000 | **+0.015**      |
+
+Client subsampling improves Non-IID performance on both datasets. Parihaka: +10.7% mIoU, class 4 doubles. F3: +2.7% mIoU, class 4 +66%.
 
 ### Class-Weighted FedAvg (Non-IID, Parihaka)
 
@@ -173,7 +182,7 @@ Only algorithm to achieve non-zero class 5 at 20 clients. Confirms vacant-class 
 | Algorithm | Parihaka 3c | Parihaka 5c | Parihaka 20c | F3 3c | F3 5c | F3 20c |
 |-----------|-------------|-------------|--------------|-------|-------|--------|
 | **FedAvg** | **0.628** | 0.571 | 0.514 | **0.628** | **0.604** | 0.579 |
-| FedAvg sr=0.25 | — | — | **0.569** | — | — | pending |
+| FedAvg sr=0.25 | — | — | **0.569** | — | — | **0.594** |
 | FedAvg+CW | 0.620 | **0.571** | 0.518 | — | — | — |
 | FedVLS | 0.598 | **0.577** | 0.502 | — | — | — |
 | FedProx | 0.557 | 0.557 | 0.471 | 0.614 | 0.581 | 0.533 |
@@ -192,7 +201,7 @@ Only algorithm to achieve non-zero class 5 at 20 clients. Confirms vacant-class 
 | Dataset  | Centralized | Best IID FL | IID Gap | Best Non-IID FL | Non-IID Gap |
 |----------|-------------|-------------|---------|-----------------|-------------|
 | Parihaka | 0.693       | 0.686 (3c)  | -1.0%   | 0.569 (20c sr=0.25) | -17.9% |
-| F3       | 0.786       | 0.787 (20c) | **+0.1%** | 0.579 (20c)    | -26.3% |
+| F3       | 0.786       | 0.787 (20c) | **+0.1%** | 0.594 (20c sr=0.25) | -24.4% |
 
 ---
 
@@ -225,7 +234,7 @@ Total experiments run: 50+
 - FedBN: 6 Parihaka + 6 F3 = 12
 - Centralized baselines: 2 (Parihaka + F3)
 - FedProx mu sweep: 4 (mu=0.1, 0.5 x Parihaka, F3)
-- Client subsampling: 3 (sr=0.5, 0.25 on Parihaka 20c; sr=0.25 on F3 20c pending)
+- Client subsampling: 3 (sr=0.5, 0.25 on Parihaka 20c; sr=0.25 on F3 20c)
 - Class-weighted FedAvg: 3 (Non-IID 3/5/20c Parihaka)
 - FedVLS: 3 (Non-IID 3/5/20c Parihaka)
 
