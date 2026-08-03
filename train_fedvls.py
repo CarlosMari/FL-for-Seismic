@@ -99,18 +99,19 @@ def vacant_class_distillation(logits_local, logits_global, vacant_mask):
     if not vacant_mask.any():
         return torch.tensor(0.0, device=logits_local.device)
 
-    # Extract vacant class logits
-    vc_idx = vacant_mask.nonzero(as_tuple=True)[0]  # indices of vacant classes
-    local_vc = logits_local[:, vc_idx, :, :]   # (B, |O|, H, W)
-    global_vc = logits_global[:, vc_idx, :, :]  # (B, |O|, H, W)
+    vc_idx = vacant_mask.nonzero(as_tuple=True)[0]
 
-    # Softmax over vacant classes only
-    local_log_probs = F.log_softmax(local_vc, dim=1)
-    global_probs = F.softmax(global_vc, dim=1)
+    # Softmax over the FULL class dim so the global model's "how present is
+    # class c relative to other classes" signal is preserved. Selecting after
+    # softmax avoids the |vacant|==1 degenerate case where softmax over a
+    # length-1 dim is identically 1.0 and KL is structurally zero.
+    local_log_probs_full = F.log_softmax(logits_local, dim=1)
+    global_probs_full = F.softmax(logits_global, dim=1)
 
-    # KL(global || local) = sum global * log(global / local)
-    # Using F.kl_div which expects log-probs as input: KL(target || input)
-    kl = F.kl_div(local_log_probs, global_probs, reduction="batchmean")
+    kl_full = global_probs_full * (
+        torch.log(global_probs_full + 1e-10) - local_log_probs_full
+    )
+    kl = kl_full[:, vc_idx, :, :].sum(dim=1).mean()
     return kl
 
 

@@ -72,3 +72,22 @@ datasets/
 fl-seismic/
 results/
 *.log
+
+# --- Experiment run logs (raw training output; results distilled in summary.md) ---
+logs_*/
+
+# --- Weights & Biases local run cache (runs live on the wandb server) ---
+wandb/
+
+# --- Raw experiment scratch (kept locally, not part of the published record) ---
+paper_figures/
+plan.md
+
+# --- Sweep / phase runner scripts (ad-hoc drivers, not reusable entrypoints) ---
+run_epoch_sweep.sh
+run_fedseis_layer_sweep.sh
+run_fedseis_overnight.sh
+run_loss_sweep.sh
+run_metafusion_scan.sh
+run_phase_*.sh
+run_weighted_agg.sh
