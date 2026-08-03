@@ -94,6 +94,10 @@ class Server:
             self.config.num_clients, self.config.sample_ratio, self.rng,
             self.client_info, self.config.force_rare_client,
         )
+        # Legacy FedVLS constructs a frozen model before constructing clients;
+        # preserve that RNG consumption even though trainers use a deep copy.
+        if self.config.algorithm == "fedvls":
+            self.model_factory()
         states = []
         local_models = []
         class_ious = []

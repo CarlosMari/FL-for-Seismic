@@ -193,6 +193,15 @@ class FedVLSClientTrainer(ClientTrainer):
 
 
 def class_frequency(loader, num_classes):
+    dataset = getattr(loader, "dataset", None)
+    if dataset is not None and hasattr(dataset, "label") and hasattr(dataset, "indices"):
+        labels = dataset.label[:, dataset.indices, :].reshape(-1)
+        values, counts = np.unique(labels, return_counts=True)
+        frequencies = np.zeros(num_classes, dtype=np.float32)
+        total = counts.sum()
+        for value, count in zip(values, counts):
+            frequencies[int(value)] = count / total
+        return frequencies
     counts = np.zeros(num_classes, dtype=np.float64)
     for _, targets, _ in loader:
         values, value_counts = np.unique(targets.numpy(), return_counts=True)

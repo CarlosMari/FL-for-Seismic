@@ -47,6 +47,8 @@ def test_round_one_global_state_is_bit_exact():
 
     torch.manual_seed(seed)
     np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     old_rng = np.random.RandomState(seed)
     old_seismic = old.load_and_normalize(seismic_path)
     labels = np.load(labels_path)
@@ -67,11 +69,15 @@ def test_round_one_global_state_is_bit_exact():
 
     torch.manual_seed(seed)
     np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     new_rng = np.random.RandomState(seed)
     new_seismic = load_and_normalize(seismic_path)
     new_partitions = partition_noniid(new_seismic.shape[1], 20)
     new_loaders = build_client_loaders(new_seismic, labels, new_partitions, 4)
     new_model = UNet(in_channels=1, num_classes=6, bilinear=False)
+    for key in old_global:
+        assert torch.equal(old_global[key], new_model.state_dict()[key]), key
     config = RunConfig(
         num_clients=20, num_rounds=1, local_epochs=3, batch_size=4,
         sample_ratio=0.25, loss="recall_slice", agg_strategy="equal",
