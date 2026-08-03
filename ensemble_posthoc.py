@@ -32,7 +32,14 @@ TEST2_SEISMIC = f'{PROJECT_ROOT}/datasets/test_once/test2_seismic.npy'
 TEST2_LABELS  = f'{PROJECT_ROOT}/datasets/test_once/test2_labels.npy'
 
 SEEDS = [42, 123, 7, 99, 2025]
-CKPT_TMPL = f'{PROJECT_ROOT}/results/fedavg_noniid_20c_20r_sr0.25_agginvfreq_miou_lossrecall_slice_frc_s{{seed}}/best_global_model.pth'
+
+# Which checkpoint to ensemble. "best" is best-round-on-TEST, which leaks the
+# evaluation set and flatters unstable configs; "final" (round 19, 0-indexed)
+# is the unbiased choice. Override with --ckpt final.
+CKPT_KIND = os.environ.get('ENSEMBLE_CKPT', 'best')
+_CKPT_FILE = {'best': 'best_global_model.pth', 'final': 'global_round_19.pth'}
+RUN_TMPL = f'{PROJECT_ROOT}/results/fedavg_noniid_20c_20r_sr0.25_agginvfreq_miou_lossrecall_slice_frc_s{{seed}}'
+CKPT_TMPL = RUN_TMPL + '/' + _CKPT_FILE[CKPT_KIND]
 
 
 def load_and_normalize(path):
@@ -139,7 +146,7 @@ def main():
         print(f'{tau:>5.2f}  {m1:>7.4f}  {m2:>7.4f}  {avg:>7.4f}  [{cls_str}]')
         rows.append((tau, m1, m2, avg, pc_avg.tolist()))
 
-    out = f'{PROJECT_ROOT}/paper_figures/ensemble_v3_frc.txt'
+    out = f'{PROJECT_ROOT}/paper_figures/ensemble_v3_frc_{CKPT_KIND}.txt'
     with open(out, 'w') as f:
         f.write(f'Ensemble (softmax avg) over V3+frc seeds {SEEDS}\n')
         f.write(f'Train class prior: {prior.tolist()}\n\n')

@@ -849,3 +849,45 @@ slice at essentially zero cost.
 - Best single fold: **test2 at τ=0.75 → 0.6115** (first time sub-project
   single-fold above 0.61 on Parihaka FL).
 - Collapse rescue: round 19 C5 0.008 → 0.060 via τ=1.5 (7.5× lift at zero mIoU cost).
+
+---
+
+## Tier 0 re-analysis (2026-08-03) — best-round vs final-round selection
+
+`train_federated.py` saves `best_global_model.pth` on **test** mIoU across the
+20 rounds, and every table above reports that maximum. That is max-over-rounds
+on the evaluation set. It is not merely optimistic — it is optimistic *by
+different amounts per config*, which is exactly the comparison being made.
+
+Recomputed from the raw phase logs, n=5 seeds each:
+
+| Config | Best-round mIoU | Final-round mIoU | Selection bias |
+|---|---|---|---|
+| Baseline (rare agg) | 0.5695 ± 0.0104 | 0.5514 ± 0.0121 | +0.018 |
+| V3+frc | 0.5849 ± 0.0085 | **0.5421 ± 0.0753** | **+0.043** |
+| T alone | 0.5807 ± 0.0078 | **0.5677 ± 0.0171** | +0.013 |
+
+**Two headline claims do not survive this correction:**
+
+1. **"V3+frc has ~2x tighter variance."** That was best-round std. On
+   final-round, V3+frc is the *least* stable config (± 0.0753 vs baseline's
+   ± 0.0121) — seed 2025 ends at 0.3919, a full collapse that best-round
+   selection hides entirely.
+2. **"V3+frc is the best single-model config."** On final-round, **T alone
+   wins** (0.5677 vs 0.5421) and is 4x more stable. The V3+frc ranking was an
+   artifact of picking each run's luckiest round.
+
+Per-seed final-round detail:
+
+    V3+frc   s42 0.5733 | s123 0.5740 | s7 0.5892 | s99 0.5821 | s2025 0.3919
+    T alone  s42 0.5906 | s123 0.5706 | s7 0.5694 | s99 0.5703 | s2025 0.5375
+
+C5 at final round also differs from the best-round story: baseline 0.051,
+V3+frc 0.098, T 0.093 — T matches V3+frc on rare-class recovery without the
+collapse risk.
+
+**Consequence.** Report final-round as primary, or select on a held-out
+validation split. Best-round may stay as a clearly-labelled secondary column.
+The ensemble/MetaFusion numbers (0.6155 / 0.6176) inherit this bias, since they
+ensemble the best-round checkpoints; they need recomputation from final-round
+checkpoints before publication.
