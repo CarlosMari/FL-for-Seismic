@@ -133,11 +133,12 @@ def logit_suppression(logits, targets, class_freq):
         mask = (targets_flat != c).float()  # (N,)
         if mask.sum() == 0:
             continue
-        # exp(f[c]) for all pixels where y != c
-        exp_logit_c = torch.exp(logits_flat[:, c])  # (N,)
-        # log(mean of masked exp logits)
-        mean_exp = (mask * exp_logit_c).sum() / mask.sum()
-        l_c = torch.log(mean_exp + 1e-10)
+        # Max-subtracted: log(mean(exp(x))) == log(mean(exp(x - M))) + M.
+        # Without this, exp() overflows to inf for logits above ~88 in float32.
+        col = logits_flat[:, c]
+        M = col.max().detach()
+        mean_exp = (mask * torch.exp(col - M)).sum() / mask.sum()
+        l_c = torch.log(mean_exp + 1e-10) + M
         total_loss = total_loss + class_freq[c] * l_c
 
     return total_loss
