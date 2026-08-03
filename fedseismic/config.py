@@ -44,6 +44,8 @@ class RunConfig:
     alpha_proto: float = 0.5
     alpha_dis: float = 0.1
     proto_layer: str = "up4"
+    norm: str = "batch"
+    norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
     device: str = "cpu"
     output_dir: str | None = None

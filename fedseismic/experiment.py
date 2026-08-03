@@ -120,7 +120,9 @@ def _run_seed(cfg, seed):
     ):
         if seismic is not None and labels is not None:
             tests[name] = build_test_loader(seismic, labels)
-    model_factory = lambda: UNet(1, cfg.num_classes, bilinear=False)
+    model_factory = lambda: UNet(
+        1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups,
+    )
     model = model_factory()
     server = Server(
         model=model, client_loaders=loaders, criterion=_criterion(cfg, train_labels),
