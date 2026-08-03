@@ -162,9 +162,7 @@ def vacant_class_distillation(logits_local, logits_global, vacant_mask):
         return torch.tensor(0.0, device=logits_local.device)
     vc_idx = vacant_mask.nonzero(as_tuple=True)[0]
 
-    # Softmax over the FULL class dim, then select. Slicing before the softmax
-    # makes the |vacant|==1 case degenerate: softmax over a length-1 dim is
-    # identically 1.0, so the KL term is structurally zero.
+    # Softmax over the FULL class dim.
     local_log_probs_full = F.log_softmax(logits_local, dim=1)
     global_probs_full = F.softmax(logits_global, dim=1)
 
