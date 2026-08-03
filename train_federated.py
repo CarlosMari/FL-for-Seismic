@@ -639,8 +639,12 @@ def main():
     le_tag = f"_le{local_epochs}" if local_epochs != LOCAL_EPOCHS else ""
     loss_tag = f"_loss{args.loss}" if args.loss != "focaldice" else ""
     frc_tag = "_frc" if args.force_rare_client else ""
+    # Norm layer is selected via the UNET_NORM env var (see models/unet_parts.py).
+    # Tag it so GroupNorm runs cannot overwrite BatchNorm checkpoints.
+    norm_kind = os.environ.get("UNET_NORM", "batch").lower()
+    norm_tag = "" if norm_kind == "batch" else f"_norm{norm_kind}"
     seed_tag = f"_s{seed}"
-    exp_name = f"fedavg_{split_mode}_{num_clients}c_{num_rounds}r{sr_tag}{cw_tag}{agg_tag}{le_tag}{loss_tag}{frc_tag}{seed_tag}"
+    exp_name = f"fedavg_{split_mode}_{num_clients}c_{num_rounds}r{sr_tag}{cw_tag}{agg_tag}{le_tag}{loss_tag}{frc_tag}{norm_tag}{seed_tag}"
     save_dir = os.path.join(PROJECT_ROOT, "results", exp_name)
     os.makedirs(save_dir, exist_ok=True)
 
