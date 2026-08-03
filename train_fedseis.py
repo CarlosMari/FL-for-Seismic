@@ -161,11 +161,17 @@ def vacant_class_distillation(logits_local, logits_global, vacant_mask):
     if not vacant_mask.any():
         return torch.tensor(0.0, device=logits_local.device)
     vc_idx = vacant_mask.nonzero(as_tuple=True)[0]
-    local_vc = logits_local[:, vc_idx, :, :]
-    global_vc = logits_global[:, vc_idx, :, :]
-    local_log_probs = F.log_softmax(local_vc, dim=1)
-    global_probs = F.softmax(global_vc, dim=1)
-    return F.kl_div(local_log_probs, global_probs, reduction="batchmean")
+
+    # Softmax over the FULL class dim, then select. Slicing before the softmax
+    # makes the |vacant|==1 case degenerate: softmax over a length-1 dim is
+    # identically 1.0, so the KL term is structurally zero.
+    local_log_probs_full = F.log_softmax(logits_local, dim=1)
+    global_probs_full = F.softmax(logits_global, dim=1)
+
+    kl_full = global_probs_full * (
+        torch.log(global_probs_full + 1e-10) - local_log_probs_full
+    )
+    return kl_full[:, vc_idx, :, :].sum(dim=1).mean()
 
 
 # ── Partitioning & loading ──────────────────────────────────────────────────
