@@ -10,6 +10,7 @@ import warnings
 import random
 import pprint
 import os
+import wandb
 
 warnings.filterwarnings("ignore")
 
@@ -30,20 +31,21 @@ SCHEDULER = {
 
 def _get_setups(args):
 
-    np.random.seed(args.seed)
-    random.seed(args.seed)
+    np.random.seed(args.train_setups.seed)
+    random.seed(args.train_setups.seed)
 
     # Create save folder
     base_folder = args.data_setups.base_folder
     folder = str(args.data_setups.n_clients) + '_' + 'Clients_' + args.train_setups.algo.name + '_' + str(args.train_setups.scenario.sample_ratio)
 
     # Set up folder to save stuff
+    seed = args.train_setups.seed
     if args.data_setups.dataset_name == 'seismic':
         # no dirichlet, etc partition in seismic semantic segmentation
         train_test_folder = (base_folder + '/' + args.data_setups.dataset_name + '/' +
                              str(args.data_setups.n_clients) + '_' + 'Clients_Idxs' + '/')
         save_folder = (base_folder + args.data_setups.date + '/' + args.data_setups.dataset_name + '/' +
-                       folder + '/' + str(args.seed) + '/')
+                       folder + '/' + str(seed) + '/')
     else:
         if args.data_setups.partition.method == 'dirichlet':
             train_test_folder = (base_folder + '/' + args.data_setups.dataset_name + '/' + \
@@ -52,7 +54,7 @@ def _get_setups(args):
 
             save_folder = (base_folder + args.data_setups.date + '/' + args.data_setups.dataset_name + '/' +
                            args.data_setups.partition.method + '_' + str(args.data_setups.partition.alpha) + '/' + folder + '/' +
-                           str(args.seed) + '/')
+                           str(seed) + '/')
 
         elif args.data_setups.partition.method == 'sharding':
             train_test_folder = (base_folder + '/' + args.data_setups.dataset_name + '/' +
@@ -60,12 +62,12 @@ def _get_setups(args):
                                  str(args.data_setups.n_clients) + '_' + 'Clients_Idxs' + '/')
             save_folder = (base_folder + args.data_setups.date + '/' + args.data_setups.dataset_name + '/' +
                            args.data_setups.partition.method + '_' + str(args.data_setups.partition.shard_per_user) +
-                           '/' + folder + '/' + str(args.seed) + '/')
+                           '/' + folder + '/' + str(seed) + '/')
         else:
             train_test_folder = base_folder + '/' + args.data_setups.dataset_name + '/' + \
                           args.data_setups.partition.method + '/' + str(args.data_setups.n_clients) + '_' + 'Clients_Idxs' + '/'
             save_folder = (base_folder + args.data_setups.date + '/' + args.data_setups.dataset_name + '/' +
-                           args.data_setups.partition.method + '/' + folder + '/' + str(args.seed) + '/')
+                           args.data_setups.partition.method + '/' + folder + '/' + str(seed) + '/')
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -79,7 +81,7 @@ def _get_setups(args):
                                         batch_size=args.data_setups.batch_size, n_clients=args.data_setups.n_clients,
                                         partition=args.data_setups.partition, save_folder=train_test_folder)
 
-    _random_seeder(args.seed)
+    _random_seeder(args.train_setups.seed)
 
     model = create_models(
         args.train_setups.model.name,
@@ -157,39 +159,17 @@ def main(args):
 ######################################################################3
 
 # Parser arguments for terminal execution
-parser = argparse.ArgumentParser(description="Process Configs")
-parser.add_argument("--root_path", default="/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/PhDResearch/Code/Federated-Learning-Updated", type=str)
-parser.add_argument("--date", type=str)
-parser.add_argument("--resume", action='store_true')
-parser.add_argument("--root", default="./data", type=str)
-parser.add_argument("--base_folder", default="/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/BIGandDATA/Federated_Learning/", type=str)
-parser.add_argument("--config_path", default="/config/fedavg.json", type=str)
-parser.add_argument("--dataset_name", type=str)
-parser.add_argument("--n_clients", type=int)
-parser.add_argument("--batch_size", type=int)
-parser.add_argument("--partition_method", type=str)
-parser.add_argument("--partition_s", type=int)
-parser.add_argument("--partition_alpha", type=float)
-parser.add_argument("--model_name", type=str)
-parser.add_argument("--n_rounds", type=int)
-parser.add_argument("--sample_ratio", type=float)
-parser.add_argument("--local_epochs", type=int)
-parser.add_argument("--lr", type=float)
-parser.add_argument("--momentum", type=float)
-parser.add_argument("--wd", type=float)
-parser.add_argument("--algo_name", type=str)
-parser.add_argument("--device", type=str)
-parser.add_argument("--seed", type=int)
-parser.add_argument("--group", type=str)
-parser.add_argument("--exp_name", type=str)
+parser = argparse.ArgumentParser(description="Run FL Experiment from Config")
+parser.add_argument("--config_path", required=True, type=str, help="Path to JSON config file")
+parser.add_argument("--resume", action='store_true', help="Resume from checkpoint")
 args = parser.parse_args()
 
 if __name__ == "__main__":
     # Load configuration from .json file
-    opt = ConfLoader(args.root_path + args.config_path).opt
+    opt = ConfLoader(args.config_path).opt
 
-    # Overwrite config by parsed arguments
-    opt = config_overwriter(opt, args)
+    # Set resume flag if provided
+    opt.resume = args.resume
 
     # Print configuration dictionary pretty
     print("")
@@ -198,5 +178,16 @@ if __name__ == "__main__":
     pp.pprint(opt)
     print("=" * 120)
 
+    # Initialize wandb
+    wandb.init(
+        project=opt.wandb_setups.project,
+        group=opt.wandb_setups.group,
+        name=opt.wandb_setups.name,
+        config=dict(opt)
+    )
+
     # Execute experiment
     main(opt)
+
+    # Finish wandb run
+    wandb.finish()

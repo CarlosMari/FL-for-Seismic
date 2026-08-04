@@ -5,6 +5,7 @@ import sys
 import pandas as pd
 import numpy as np
 import torch
+import wandb
 
 from algorithms.fedseismic.metrics import eval_model
 
@@ -47,8 +48,13 @@ class Server(BaseServer):
         self.global_on_global1 = np.array([])
         self.global_on_global2 = np.array([])
 
-        self.test_set1 = np.load('/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/BIGandDATA/Seismic/data/test_once/test1_labels.npy')
-        self.test_set2 = np.load('/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/BIGandDATA/Seismic/data/test_once/test2_labels.npy')
+        # Load test labels from the data_distributed dict (already loaded in loader.py)
+        # Or reconstruct path from save_folder by going to datasets directory
+        import train_tools.preprocessing.seismic.loader as seismic_loader
+        root_path = data_distributed.get("root_path", "./datasets/seismic")
+        _, _, test_labels1, test_labels2 = seismic_loader.test_data(root_path)
+        self.test_set1 = test_labels1
+        self.test_set2 = test_labels2
 
         self.df_glob = pd.DataFrame(columns=['Round', 'Global test acc test1', 'Global classwise test1', 'Global test acc test2',
                               'Global classwise test2', 'Global nfr test1', 'Global nfr test2'])
@@ -160,7 +166,9 @@ class Server(BaseServer):
     def _update_and_evaluate(self, ag_weights, round_results, round_idx, start_time, sampled_clients, df_global=pd.DataFrame([])):
         """Evaluate experiment statistics."""
 
-        pred_folder = '/home/zoe/GhassanGT Dropbox/Zoe Fowler/Zoe/InSync/BIGandDATA/Federated_Learning/10-18-24/seismic/10_Clients_fedseismic_0.5/1/preds/'
+        pred_folder = os.path.join(self.save_folder, 'preds/')
+        os.makedirs(pred_folder, exist_ok=True)
+
         # Update Global Server Model with Aggregated Model Weights
         self.model.load_state_dict(ag_weights)
 
@@ -224,5 +232,18 @@ class Server(BaseServer):
         df_global.at[round_idx, 'Global classwise test2'] = list(miou_class2)
         df_global.at[round_idx, 'Global nfr test1'] = nfr1
         df_global.at[round_idx, 'Global nfr test2'] = nfr2
+
+        # Log metrics to wandb
+        wandb.log({
+            "round": round_idx,
+            "global_miou_test1": miou1,
+            "global_miou_test2": miou2,
+            "global_miou_avg": (miou1 + miou2) / 2,
+            "global_nfr_test1": nfr1,
+            "global_nfr_test2": nfr2,
+            "round_time": round_elapse,
+            **{f"miou_class{i}_test1": miou_class1[i] for i in range(len(miou_class1))},
+            **{f"miou_class{i}_test2": miou_class2[i] for i in range(len(miou_class2))}
+        })
 
         return df_global

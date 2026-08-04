@@ -46,8 +46,12 @@ class InlineLoader(Dataset):
 
         Returns
         -------
-        images: ndarray of shape (1, H, W)
-              Returns inline section specified by index"""
+        section: ndarray of shape (1, H, W)
+              Returns inline section specified by index
+        label_section: ndarray
+              Label for the section
+        index: int
+              Index of the sample"""
 
         inline_num = self.indices[index]
 
@@ -62,10 +66,7 @@ class InlineLoader(Dataset):
         if self.transform:
             section = self.transform(section)
 
-        if self.train_status == False:
-            return section, label_section
-
-        return section, label_section
+        return section, label_section, index
 
     def __len__(self):
         """Retrieves total number of training samples"""
