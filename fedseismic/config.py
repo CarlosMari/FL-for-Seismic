@@ -7,6 +7,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Mapping
 
+import torch
+
 
 class CheckpointPolicy(str, Enum):
     FINAL = "final"
@@ -14,14 +16,50 @@ class CheckpointPolicy(str, Enum):
     BEST_TEST = "best_test"
 
 
+class DatasetName(str, Enum):
+    SEISMIC = "seismic"
+    CIFAR10 = "cifar10"
+    BLOODMNIST = "bloodmnist"
+    ORGANCMNIST = "organcmnist"
+    ORGANSMNIST = "organsmnist"
+
+
+CLASSIFICATION_DATASETS = {
+    DatasetName.CIFAR10.value,
+    DatasetName.BLOODMNIST.value,
+    DatasetName.ORGANCMNIST.value,
+    DatasetName.ORGANSMNIST.value,
+}
+
+
+def resolve_device(device: str) -> str:
+    """Honor the configured device; do not silently fall back."""
+    requested = device.strip().lower()
+    if requested == "cpu":
+        return "cpu"
+    if requested == "mps":
+        if not torch.backends.mps.is_available():
+            raise RuntimeError("device='mps' in config but MPS is not available")
+        return "mps"
+    if requested in {"cuda", "gpu"} or requested.startswith("cuda"):
+        if not torch.cuda.is_available():
+            raise RuntimeError(f"device={device!r} in config but CUDA is not available")
+        return "cuda" if requested == "gpu" else requested
+    raise ValueError(f"unknown device {device!r}; use cpu, mps, cuda, or cuda:N")
+
+
 @dataclass
 class RunConfig:
-    """All knobs needed by a segmentation experiment.
+    """Knobs for a seismic or CIFAR federated run.
 
-    Paths are optional so deterministic components such as partitioning and
-    aggregation can be used without a dataset on disk.
+    ``device`` is chosen in config (``mps`` on a Mac, ``cuda`` on a 3090).
+    Paths are optional so partitioning and aggregation can be used without data.
     """
 
+    dataset: str = DatasetName.SEISMIC.value
+    data_root: str = "datasets"
+    partition_alpha: float = 0.1
+    num_workers: int | None = None
     num_clients: int = 20
     split: str = "noniid"
     num_rounds: int = 20
@@ -44,9 +82,14 @@ class RunConfig:
     alpha_proto: float = 0.5
     alpha_dis: float = 0.1
     proto_layer: str = "up4"
+    lambda_cap: float = 10.0
+    grad_clip: float = 5.0
+    local_test_ratio: float = 0.2
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
+    optimizer: str = "adamw"
+    momentum: float = 0.9
     device: str = "cpu"
     output_dir: str | None = None
     train_seismic: str | None = None
@@ -59,8 +102,13 @@ class RunConfig:
     validation_labels: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def task(self) -> str:
+        return "classification" if self.dataset in CLASSIFICATION_DATASETS else "segmentation"
+
     def __post_init__(self) -> None:
         self.checkpoint_policy = CheckpointPolicy(self.checkpoint_policy)
+        self.dataset = DatasetName(self.dataset).value
         self.rare_classes = tuple(self.rare_classes)
         if self.split not in {"iid", "noniid"}:
             raise ValueError("split must be 'iid' or 'noniid'")
@@ -68,6 +116,11 @@ class RunConfig:
             raise ValueError("num_clients, num_rounds, and local_epochs must be positive")
         if not 0 < self.sample_ratio <= 1:
             raise ValueError("sample_ratio must be in (0, 1]")
+        if not 0 <= self.local_test_ratio < 1:
+            raise ValueError("local_test_ratio must be in [0, 1)")
+        self.optimizer = str(self.optimizer).strip().lower()
+        if self.optimizer not in {"adamw", "sgd"}:
+            raise ValueError("optimizer must be 'adamw' or 'sgd'")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",

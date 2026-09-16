@@ -102,3 +102,6 @@ build_presentation.py
 # --- Rendered figure outputs (regenerate from figures/*.py) ---
 figures/*.png
 figures/*.pdf
+
+# --- Numpy array dumps ---
+*.npy

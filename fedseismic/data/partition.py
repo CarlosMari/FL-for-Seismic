@@ -31,19 +31,50 @@ def partition_iid(num_crosslines, num_clients, rng):
     return partitions
 
 
+def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
+    """Hold out part of each client's own indices.
+
+    With ``rng is None`` (seismic), take the contiguous tail of the sorted
+    chunk. With an RNG (CIFAR), draw a random subset so the holdout is not
+    an artifact of image index order.
+    """
+    if not 0 <= local_test_ratio < 1:
+        raise ValueError("local_test_ratio must be in [0, 1)")
+    train_partitions = []
+    test_partitions = []
+    for idxs in partitions:
+        ordered = sorted(idxs)
+        if local_test_ratio == 0 or len(ordered) < 2:
+            train_partitions.append(ordered)
+            test_partitions.append([])
+            continue
+        n_test = max(1, int(round(len(ordered) * local_test_ratio)))
+        n_test = min(n_test, len(ordered) - 1)
+        if rng is None:
+            test_idxs = ordered[-n_test:]
+        else:
+            chosen = rng.choice(len(ordered), size=n_test, replace=False)
+            test_idxs = sorted(ordered[int(i)] for i in chosen)
+        test_set = set(test_idxs)
+        train_partitions.append([idx for idx in ordered if idx not in test_set])
+        test_partitions.append(test_idxs)
+    return train_partitions, test_partitions
+
+
 def build_client_loaders(train_seismic, train_labels, partitions, batch_size,
-                         num_workers=2, pin_memory=True):
+                         num_workers=2, pin_memory=True, shuffle=True,
+                         train_status=True):
     loaders = []
     for crossline_idxs in partitions:
         dataset = InlineLoader(
             seismic_cube=train_seismic,
             label_cube=train_labels,
             inline_inds=crossline_idxs,
-            train_status=True,
+            train_status=train_status,
             transform=_to_tensor,
         )
         loaders.append(DataLoader(
-            dataset, batch_size=batch_size, shuffle=True,
+            dataset, batch_size=batch_size, shuffle=shuffle,
             num_workers=num_workers, pin_memory=pin_memory,
         ))
     return loaders
@@ -52,11 +83,15 @@ def build_client_loaders(train_seismic, train_labels, partitions, batch_size,
 def compute_client_class_info(train_labels, partitions, num_classes=NUM_CLASSES,
                               rare_classes=RARE_CLASSES):
     client_info = []
+    labels = np.asarray(train_labels)
     for idxs in partitions:
-        client_labels = train_labels[:, idxs, :].flatten()
+        if labels.ndim > 1:
+            client_labels = labels[:, idxs, :].flatten()
+        else:
+            client_labels = labels[idxs]
         unique_classes = set(np.unique(client_labels).tolist())
         class_counts = dict(zip(*np.unique(client_labels, return_counts=True)))
-        total = client_labels.size
+        total = max(int(client_labels.size), 1)
         rare_fraction = sum(class_counts.get(rc, 0) for rc in rare_classes) / total
         class_fracs = np.zeros(num_classes, dtype=np.float64)
         for class_idx in range(num_classes):

@@ -14,10 +14,18 @@ def main(argv=None):
     run_parser.add_argument("--seed", type=int, action="append", dest="seeds")
     args = parser.parse_args(argv)
     if args.command == "run":
-        results = run(RunConfig.from_json(args.config), args.seeds)
+        cfg = RunConfig.from_json(args.config)
+        results = run(cfg, args.seeds)
         mean, std = results.mean_std
-        print(f"final mIoU: {results.miou_final}")
+        local_mean, local_std = results.local_mean_std
+        metric = "acc" if cfg.task == "classification" else "mIoU"
+        print(f"device: {cfg.device}")
+        print(f"final {metric}: {results.miou_final}")
         print(f"mean +/- std: {mean:.6f} +/- {std:.6f}")
+        print(f"local {metric}: {results.local_mean} (worst {results.local_worst})")
+        print(f"local mean +/- std: {local_mean:.6f} +/- {local_std:.6f}")
+        print(f"global-on-local: {results.global_on_local}")
+        print(f"balance: {results.balance:.6f}")
         print(f"recovery rate: {results.recovery_rate:.6f}")
         return results
 

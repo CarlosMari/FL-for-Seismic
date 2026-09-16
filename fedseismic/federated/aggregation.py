@@ -125,6 +125,25 @@ class AccuracyAgg:
                 for model in client_models]
 
 
+class FedKPerAgg:
+    """Reliability (train pixel acc) times normalized label-histogram entropy."""
+
+    def weights(self, selected_clients, client_info, client_train_accs=None, **kwargs):
+        if client_train_accs is None:
+            raise AssertionError("fedkper needs client_train_accs")
+        if len(client_train_accs) != len(selected_clients):
+            raise ValueError("client_train_accs must match selected_clients")
+        eps = 1e-12
+        num_classes = len(client_info[selected_clients[0]]["class_fracs"])
+        weights = []
+        for index, client in enumerate(selected_clients):
+            fracs = np.asarray(client_info[client]["class_fracs"], dtype=np.float64)
+            pi = fracs / (fracs.sum() + eps)
+            diversity = float(-np.sum(pi * np.log(pi + eps)) / (np.log(num_classes) + eps))
+            weights.append(float(client_train_accs[index]) * (eps + diversity))
+        return weights
+
+
 AGGREGATORS = {
     "equal": EqualAgg,
     "diversity": DiversityAgg,
@@ -134,6 +153,7 @@ AGGREGATORS = {
     "invfreq": InvFreqAgg,
     "invfreq_invmiou": InvFreqInvMiouAgg,
     "accuracy": AccuracyAgg,
+    "fedkper": FedKPerAgg,
 }
 
 
