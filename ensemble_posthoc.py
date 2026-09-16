@@ -38,7 +38,10 @@ SEEDS = [42, 123, 7, 99, 2025]
 # is the unbiased choice. Override with --ckpt final.
 CKPT_KIND = os.environ.get('ENSEMBLE_CKPT', 'best')
 _CKPT_FILE = {'best': 'best_global_model.pth', 'final': 'global_round_19.pth'}
-RUN_TMPL = f'{PROJECT_ROOT}/results/fedavg_noniid_20c_20r_sr0.25_agginvfreq_miou_lossrecall_slice_frc_s{{seed}}'
+# Which run family to ensemble. Override with ENSEMBLE_RUN when the ladder
+# is rebuilt on a different loss (focaldice leaves the loss tag empty).
+_DEFAULT_RUN = 'fedavg_noniid_20c_20r_sr0.25_agginvfreq_miou_lossrecall_slice_frc_s{seed}'
+RUN_TMPL = f"{PROJECT_ROOT}/results/" + os.environ.get('ENSEMBLE_RUN', _DEFAULT_RUN)
 CKPT_TMPL = RUN_TMPL + '/' + _CKPT_FILE[CKPT_KIND]
 
 
@@ -146,7 +149,8 @@ def main():
         print(f'{tau:>5.2f}  {m1:>7.4f}  {m2:>7.4f}  {avg:>7.4f}  [{cls_str}]')
         rows.append((tau, m1, m2, avg, pc_avg.tolist()))
 
-    out = f'{PROJECT_ROOT}/paper_figures/ensemble_v3_frc_{CKPT_KIND}.txt'
+    out = os.environ.get('ENSEMBLE_OUT',
+                         f'{PROJECT_ROOT}/paper_figures/ensemble_v3_frc_{CKPT_KIND}.txt')
     with open(out, 'w') as f:
         f.write(f'Ensemble (softmax avg) over V3+frc seeds {SEEDS}\n')
         f.write(f'Train class prior: {prior.tolist()}\n\n')
