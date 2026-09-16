@@ -7,6 +7,12 @@ from .cifar import (
     partition_dirichlet,
     partition_iid_indices,
 )
+from .medmnist import (
+    MEDMNIST_SPECS,
+    build_medmnist_loaders,
+    build_medmnist_test_loader,
+    load_medmnist,
+)
 from .partition import (
     build_client_loaders,
     compute_client_class_info,
@@ -22,4 +28,6 @@ __all__ = [
     "compute_client_class_info",
     "load_cifar10", "partition_dirichlet", "partition_iid_indices",
     "build_cifar_loaders", "build_cifar_test_loader",
+    "MEDMNIST_SPECS", "load_medmnist", "build_medmnist_loaders",
+    "build_medmnist_test_loader",
 ]

@@ -15,7 +15,7 @@ class ClientTrainer:
     """Download global weights, train locally, upload weights, then reset."""
 
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
-                 lr=1e-3, weight_decay=1e-4):
+                 lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9):
         self.model = model
         self.loader = loader
         self.criterion = criterion
@@ -23,7 +23,21 @@ class ClientTrainer:
         self.local_epochs = local_epochs
         self.lr = lr
         self.weight_decay = weight_decay
+        self.optimizer_name = str(optimizer).strip().lower()
+        self.momentum = momentum
         self.optimizer = None
+
+    def _make_optimizer(self):
+        if self.optimizer_name == "sgd":
+            return torch.optim.SGD(
+                self.model.parameters(), lr=self.lr, momentum=self.momentum,
+                weight_decay=self.weight_decay,
+            )
+        if self.optimizer_name == "adamw":
+            return torch.optim.AdamW(
+                self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay,
+            )
+        raise ValueError(f"unknown optimizer {self.optimizer_name!r}")
 
     def download(self, state_dict):
         self.model.load_state_dict(state_dict)
@@ -33,9 +47,7 @@ class ClientTrainer:
     def train(self, global_state=None):
         self.model.train()
         self.model.to(self.device)
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
-        )
+        self.optimizer = self._make_optimizer()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)
@@ -69,9 +81,7 @@ class FedProxClientTrainer(ClientTrainer):
         ]
         self.model.train()
         self.model.to(self.device)
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
-        )
+        self.optimizer = self._make_optimizer()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)
@@ -170,9 +180,7 @@ class FedVLSClientTrainer(ClientTrainer):
         dice = DiceLoss()
         self.model.train()
         self.model.to(self.device)
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
-        )
+        self.optimizer = self._make_optimizer()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)
@@ -269,9 +277,7 @@ class FedSeisClientTrainer(ClientTrainer):
         vacant_mask = self.vacant_mask.to(self.device)
         self.model.train()
         self.model.to(self.device)
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay,
-        )
+        self.optimizer = self._make_optimizer()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)

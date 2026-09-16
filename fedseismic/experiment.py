@@ -6,15 +6,21 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .config import CheckpointPolicy, DatasetName, RunConfig, resolve_device
+from .config import (
+    CLASSIFICATION_DATASETS, CheckpointPolicy, DatasetName, RunConfig, resolve_device,
+)
 from .data import (
+    MEDMNIST_SPECS,
     build_cifar_loaders,
     build_cifar_test_loader,
     build_client_loaders,
+    build_medmnist_loaders,
+    build_medmnist_test_loader,
     build_test_loader,
     compute_client_class_info,
     load_and_normalize,
     load_cifar10,
+    load_medmnist,
     partition_dirichlet,
     partition_iid,
     partition_iid_indices,
@@ -31,7 +37,7 @@ from .losses import (
     RecallLossPerSlice,
     UnifiedFocalLoss,
 )
-from .models import FedAvgNetCIFAR, UNet
+from .models import FedAvgNetCIFAR, MedMNISTNet, UNet
 
 
 @dataclass
@@ -121,7 +127,7 @@ def _loader_kwargs(cfg):
 
 
 def _required_paths(cfg):
-    if cfg.dataset == DatasetName.CIFAR10.value:
+    if cfg.dataset in CLASSIFICATION_DATASETS:
         return
     paths = [cfg.train_seismic, cfg.train_labels]
     if any(path is None for path in paths):
@@ -190,6 +196,40 @@ def _setup_cifar(cfg, seed, rng):
     return train_targets, train_parts, loaders, client_tests, tests, model_factory
 
 
+def _setup_medmnist(cfg, seed, rng):
+    train_images, train_targets, test_images, test_targets, spec = load_medmnist(
+        cfg.dataset, cfg.data_root,
+    )
+    cfg.num_classes = spec["n_classes"]
+    partitions = (
+        partition_dirichlet(train_targets, cfg.num_clients, cfg.partition_alpha, rng)
+        if cfg.split == "noniid"
+        else partition_iid_indices(len(train_targets), cfg.num_clients, rng)
+    )
+    train_parts, test_parts = split_client_local_test(
+        partitions, cfg.local_test_ratio, rng=rng,
+    )
+    kwargs = _loader_kwargs(cfg)
+    n_channels = spec["n_channels"]
+    loaders = build_medmnist_loaders(
+        train_images, train_targets, train_parts, cfg.batch_size, n_channels,
+        train=True, **kwargs,
+    )
+    client_tests = build_medmnist_loaders(
+        train_images, train_targets, test_parts, cfg.batch_size, n_channels,
+        train=False, **kwargs,
+    )
+    tests = {
+        "test1": build_medmnist_test_loader(
+            test_images, test_targets, cfg.batch_size, n_channels, **kwargs,
+        ),
+    }
+    model_factory = lambda: MedMNISTNet(
+        num_classes=cfg.num_classes, in_channels=n_channels,
+    )
+    return train_targets, train_parts, loaders, client_tests, tests, model_factory
+
+
 def _last_or_nan(values):
     measured = [value for value in values if value is not None]
     return float(measured[-1]) if measured else float("nan")
@@ -202,6 +242,10 @@ def _run_seed(cfg, seed):
     rng = np.random.RandomState(seed)
     if cfg.dataset == DatasetName.CIFAR10.value:
         train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_cifar(
+            cfg, seed, rng,
+        )
+    elif cfg.dataset in MEDMNIST_SPECS:
+        train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_medmnist(
             cfg, seed, rng,
         )
     else:

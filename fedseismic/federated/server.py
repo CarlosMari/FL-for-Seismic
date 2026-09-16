@@ -66,6 +66,7 @@ class Server:
                 criterion=self.criterion, device=self.device,
                 local_epochs=self.config.local_epochs, lr=self.config.lr,
                 weight_decay=self.config.weight_decay,
+                optimizer=self.config.optimizer, momentum=self.config.momentum,
             )
             if factory is FedProxClientTrainer:
                 kwargs["mu"] = self.config.mu

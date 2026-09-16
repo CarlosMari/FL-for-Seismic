@@ -28,9 +28,7 @@ class FedKPerClientTrainer(ClientTrainer):
         global_model.eval()
         self.model.train()
         self.model.to(self.device)
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay,
-        )
+        self.optimizer = self._make_optimizer()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)

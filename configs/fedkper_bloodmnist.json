@@ -1,21 +1,23 @@
 {
-  "dataset": "cifar10",
+  "dataset": "bloodmnist",
   "data_root": "datasets",
   "num_clients": 20,
   "split": "noniid",
   "partition_alpha": 0.1,
-  "num_rounds": 20,
+  "num_rounds": 100,
   "local_epochs": 5,
   "batch_size": 50,
   "lr": 0.01,
   "weight_decay": 0.0001,
-  "num_classes": 10,
+  "num_classes": 8,
   "sample_ratio": 0.1,
   "seed": 42,
   "algorithm": "fedkper",
   "agg_strategy": "fedkper",
+  "optimizer": "sgd",
+  "momentum": 0.9,
   "local_test_ratio": 0.2,
   "lambda_cap": 10.0,
   "grad_clip": 5.0,
-  "device": "cuda"
+  "device": "mps"
 }

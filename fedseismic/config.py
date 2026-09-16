@@ -19,6 +19,17 @@ class CheckpointPolicy(str, Enum):
 class DatasetName(str, Enum):
     SEISMIC = "seismic"
     CIFAR10 = "cifar10"
+    BLOODMNIST = "bloodmnist"
+    ORGANCMNIST = "organcmnist"
+    ORGANSMNIST = "organsmnist"
+
+
+CLASSIFICATION_DATASETS = {
+    DatasetName.CIFAR10.value,
+    DatasetName.BLOODMNIST.value,
+    DatasetName.ORGANCMNIST.value,
+    DatasetName.ORGANSMNIST.value,
+}
 
 
 def resolve_device(device: str) -> str:
@@ -77,6 +88,8 @@ class RunConfig:
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
+    optimizer: str = "adamw"
+    momentum: float = 0.9
     device: str = "cpu"
     output_dir: str | None = None
     train_seismic: str | None = None
@@ -91,7 +104,7 @@ class RunConfig:
 
     @property
     def task(self) -> str:
-        return "classification" if self.dataset == DatasetName.CIFAR10.value else "segmentation"
+        return "classification" if self.dataset in CLASSIFICATION_DATASETS else "segmentation"
 
     def __post_init__(self) -> None:
         self.checkpoint_policy = CheckpointPolicy(self.checkpoint_policy)
@@ -105,6 +118,9 @@ class RunConfig:
             raise ValueError("sample_ratio must be in (0, 1]")
         if not 0 <= self.local_test_ratio < 1:
             raise ValueError("local_test_ratio must be in [0, 1)")
+        self.optimizer = str(self.optimizer).strip().lower()
+        if self.optimizer not in {"adamw", "sgd"}:
+            raise ValueError("optimizer must be 'adamw' or 'sgd'")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",
