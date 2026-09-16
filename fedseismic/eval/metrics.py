@@ -28,3 +28,36 @@ def evaluate(model, loader, labels, device="cpu"):
         average=None, zero_division=0,
     )
     return float(per_class.mean()), np.asarray(per_class)
+
+
+def evaluate_loader(model, loader, num_classes, device="cpu"):
+    """Return ``(macro_miou, per_class_iou, pixel_acc)`` from loader batches.
+
+    Use this when the loader is a subset of a cube (client local tests). Cube
+    reconstruction in ``evaluate`` assumes a full ordered axis-1 scan.
+    """
+    model.eval()
+    model.to(device)
+    predictions = []
+    targets = []
+    with torch.no_grad():
+        for images, labels, _ in loader:
+            logits = _logits(model(images.to(device, dtype=torch.float)))
+            predictions.append(logits.argmax(dim=1).cpu().numpy().ravel())
+            targets.append(np.asarray(labels.detach().cpu() if torch.is_tensor(labels) else labels).ravel())
+    if not predictions:
+        zeros = np.zeros(num_classes, dtype=np.float64)
+        return 0.0, zeros, 0.0
+    y_pred = np.concatenate(predictions)
+    y_true = np.concatenate(targets)
+    per_class = jaccard_score(
+        y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0,
+    )
+    pixel_acc = float((y_pred == y_true).mean()) if y_true.size else 0.0
+    return float(np.mean(per_class)), np.asarray(per_class), pixel_acc
+
+
+def score_loader(model, loader, num_classes, device="cpu", task="segmentation"):
+    """Primary score is accuracy for classification, macro mIoU for segmentation."""
+    miou, per_class, acc = evaluate_loader(model, loader, num_classes, device)
+    return (acc if task == "classification" else miou), per_class, acc

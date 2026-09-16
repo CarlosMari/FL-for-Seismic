@@ -2,11 +2,12 @@
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-import warnings
 
 import numpy as np
 
-from .aggregation import AGGREGATORS, aggregate_state_dicts, get_agg_weights, is_bn_key
+from fedseismic.eval.metrics import evaluate, evaluate_loader, score_loader
+
+from .aggregation import aggregate_state_dicts, get_agg_weights, is_bn_key
 from .client import (
     ClientTrainer,
     FedBNClientTrainer,
@@ -14,6 +15,7 @@ from .client import (
     FedVLSClientTrainer,
     class_frequency,
 )
+from .fedkper import FedKPerClientTrainer
 from .sampling import sample_clients
 
 
@@ -26,17 +28,21 @@ class RoundRecord:
     miou_validation: float | None = None
     miou_final: float | None = None
     per_class_iou: list[float] = field(default_factory=list)
+    miou_local_mean: float | None = None
+    miou_local_worst: float | None = None
+    miou_global_on_local: float | None = None
 
 
 class Server:
     def __init__(self, model, client_loaders, criterion, config, device=None,
                  client_info=None, model_factory=None, client_trainer_factory=None,
-                 test_loaders=None, rng=None):
-        self.model = model
+                 test_loaders=None, client_test_loaders=None, rng=None):
         self.client_loaders = client_loaders
+        self.client_test_loaders = client_test_loaders or []
         self.criterion = criterion
         self.config = config
         self.device = device or config.device
+        self.model = model.to(self.device)
         self.client_info = client_info
         self.model_factory = model_factory or (lambda: deepcopy(model))
         self.client_trainer_factory = client_trainer_factory
@@ -53,6 +59,7 @@ class Server:
                     "fedprox": FedProxClientTrainer,
                     "fedbn": FedBNClientTrainer,
                     "fedvls": FedVLSClientTrainer,
+                    "fedkper": FedKPerClientTrainer,
                 }.get(self.config.algorithm, ClientTrainer)
             kwargs = dict(
                 model=self.model_factory(), loader=self.client_loaders[client],
@@ -67,11 +74,20 @@ class Server:
                 kwargs["class_freq"] = frequencies
                 kwargs["vacant_mask"] = frequencies == 0
                 kwargs["lam"] = self.config.lam
+            if factory is FedKPerClientTrainer:
+                kwargs["lambda_cap"] = self.config.lambda_cap
+                kwargs["grad_clip"] = self.config.grad_clip
             self._client_trainers[client] = factory(**kwargs)
         return self._client_trainers[client]
 
-    def _aggregate(self, states, selected, class_ious=None, models=None):
-        strategy = self.config.agg_strategy
+    def _aggregate_strategy(self):
+        if self.config.algorithm == "fedkper":
+            return "fedkper"
+        return self.config.agg_strategy
+
+    def _aggregate(self, states, selected, class_ious=None, models=None,
+                   client_train_accs=None):
+        strategy = self._aggregate_strategy()
         if strategy == "equal":
             if self.config.algorithm == "fedbn":
                 averaged = deepcopy(states[0])
@@ -83,8 +99,9 @@ class Server:
             return aggregate_state_dicts(states)
         weights = get_agg_weights(
             strategy, selected, self.client_info, client_class_ious=class_ious,
-            client_models=models, test_loader=self.test_loaders.get("test1", (None, None))[0],
-            test_labels=self.test_loaders.get("test1", (None, None))[1], device=self.device,
+            client_models=models, test_loader=self._global_loader("test1"),
+            test_labels=self._global_labels("test1"), device=self.device,
+            client_train_accs=client_train_accs,
         )
         return aggregate_state_dicts(states, weights)
 
@@ -101,66 +118,102 @@ class Server:
         states = []
         local_models = []
         class_ious = []
+        train_accs = []
+        local_mious = []
         for client in selected:
             trainer = self._trainer(client)
             trainer.download(global_state)
             trainer.train(global_state=global_state)
             states.append(trainer.upload())
             local_models.append(trainer.model)
+            if self._aggregate_strategy() == "fedkper":
+                train_accs.append(evaluate_loader(
+                    trainer.model, self.client_loaders[client],
+                    self.config.num_classes, self.device,
+                )[2])
             if self.config.agg_strategy in {"rare_miou", "invfreq_miou", "invfreq_invmiou"}:
                 class_ious.append(self._local_class_iou(trainer.model,
                                                         self.client_loaders[client]))
+            if client < len(self.client_test_loaders) and len(self.client_test_loaders[client].dataset):
+                local_mious.append(score_loader(
+                    trainer.model, self.client_test_loaders[client],
+                    self.config.num_classes, self.device, self.config.task,
+                )[0])
             trainer.reset()
         self.model.load_state_dict(self._aggregate(
             states, selected, class_ious=class_ious or None, models=local_models,
+            client_train_accs=train_accs or None,
         ))
         record = RoundRecord(round=round_index + 1, selected_clients=selected)
+        if local_mious:
+            record.miou_local_mean = float(np.mean(local_mious))
+            record.miou_local_worst = float(np.min(local_mious))
         if "test1" in self.test_loaders or "test2" in self.test_loaders:
-            from fedseismic.eval.metrics import evaluate
             per_class_values = []
             for name in ("test1", "test2"):
-                if name in self.test_loaders:
-                    loader, labels = self.test_loaders[name]
-                    miou, per_class = evaluate(self.model, loader, labels, self.device)
-                    if name == "test1":
-                        record.miou_test1 = miou
-                    else:
-                        record.miou_test2 = miou
-                    per_class_values.append(per_class)
+                if name not in self.test_loaders:
+                    continue
+                score, per_class = self._eval_global_entry(self.test_loaders[name])
+                if name == "test1":
+                    record.miou_test1 = score
+                else:
+                    record.miou_test2 = score
+                per_class_values.append(per_class)
             if per_class_values:
                 record.per_class_iou = np.mean(per_class_values, axis=0).tolist()
             values = [value for value in (record.miou_test1, record.miou_test2)
                       if value is not None]
             record.miou_final = float(np.mean(values)) if values else None
             if "validation" in self.test_loaders:
-                loader, labels = self.test_loaders["validation"]
-                record.miou_validation = evaluate(
-                    self.model, loader, labels, self.device,
+                record.miou_validation = self._eval_global_entry(
+                    self.test_loaders["validation"],
                 )[0]
         self.history.append(record)
         return record
 
-    def _local_class_iou(self, model, loader):
-        from sklearn.metrics import jaccard_score
-        import torch
+    def evaluate_global_on_local(self):
+        scores = []
+        for loader in self.client_test_loaders:
+            if loader is None or not len(loader.dataset):
+                continue
+            scores.append(score_loader(
+                self.model, loader, self.config.num_classes, self.device, self.config.task,
+            )[0])
+        if not scores:
+            return None
+        return float(np.mean(scores))
 
-        predictions = []
-        targets = []
-        model.eval()
-        with torch.no_grad():
-            for images, labels, _ in loader:
-                logits = model(images.to(self.device, dtype=torch.float))
-                logits = logits[0] if isinstance(logits, (tuple, list)) else logits
-                predictions.append(logits.argmax(dim=1).cpu().numpy().ravel())
-                targets.append(labels.numpy().ravel())
-        if not predictions:
-            return np.zeros(self.config.num_classes, dtype=np.float64)
-        return np.asarray(jaccard_score(
-            np.concatenate(targets), np.concatenate(predictions),
-            labels=list(range(self.config.num_classes)), average=None, zero_division=0,
-        ), dtype=np.float64)
+    def _eval_global_entry(self, entry):
+        if isinstance(entry, tuple) and entry[1] is not None:
+            loader, labels = entry
+            return evaluate(self.model, loader, labels, self.device)
+        loader = entry[0] if isinstance(entry, tuple) else entry
+        score, per_class, _ = score_loader(
+            self.model, loader, self.config.num_classes, self.device, self.config.task,
+        )
+        return score, per_class
+
+    def _local_class_iou(self, model, loader):
+        _, per_class, _ = evaluate_loader(
+            model, loader, self.config.num_classes, self.device,
+        )
+        return np.asarray(per_class, dtype=np.float64)
+
+    def _global_loader(self, name):
+        entry = self.test_loaders.get(name)
+        if entry is None:
+            return None
+        return entry[0] if isinstance(entry, tuple) else entry
+
+    def _global_labels(self, name):
+        entry = self.test_loaders.get(name)
+        if isinstance(entry, tuple):
+            return entry[1]
+        return None
 
     def run(self):
         for round_index in range(self.config.num_rounds):
             self.run_round(round_index)
+        if self.history:
+            self.history[-1].miou_global_on_local = self.evaluate_global_on_local()
         return self.history

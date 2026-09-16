@@ -1,0 +1,21 @@
+{
+  "dataset": "cifar10",
+  "data_root": "datasets",
+  "num_clients": 10,
+  "split": "noniid",
+  "partition_alpha": 0.1,
+  "num_rounds": 2,
+  "local_epochs": 1,
+  "batch_size": 32,
+  "lr": 0.01,
+  "weight_decay": 0.0001,
+  "num_classes": 10,
+  "sample_ratio": 1.0,
+  "seed": 42,
+  "algorithm": "fedkper",
+  "agg_strategy": "fedkper",
+  "local_test_ratio": 0.2,
+  "lambda_cap": 10.0,
+  "grad_clip": 5.0,
+  "device": "mps"
+}
