@@ -91,3 +91,14 @@ run_loss_sweep.sh
 run_metafusion_scan.sh
 run_phase_*.sh
 run_weighted_agg.sh
+# --- Conference/presentation material (kept outside the research repo) ---
+*.pptx
+*.potx
+figures/slides/
+figures/logos/
+presentation.md
+build_presentation.py
+
+# --- Rendered figure outputs (regenerate from figures/*.py) ---
+figures/*.png
+figures/*.pdf
