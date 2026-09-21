@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from fedseismic.eval.metrics import evaluate, evaluate_loader, score_loader
-from fedseismic.privacy.estimators import softmax_prior
 
 from .aggregation import aggregate_state_dicts, get_agg_weights, is_bn_key, normalized_entropy
 from .client import (
@@ -126,6 +125,8 @@ class Server:
                 dtype=np.float64,
             )
         if mode == "infer":
+            from fedseismic.privacy.estimators import softmax_prior
+
             probe = self._probe_loader()
             if probe is None:
                 raise ValueError("fedkper_diversity='infer' requires a public probe loader")

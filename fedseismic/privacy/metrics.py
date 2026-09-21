@@ -46,9 +46,12 @@ def presence_f1(pi_true, pi_hat, threshold=1e-3):
 
 def rare_presence_f1(pi_true, pi_hat, rare_classes, threshold=1e-3):
     """F1 over the rare-class subset (seismic facies 4/5 by default)."""
-    rare = np.asarray(list(rare_classes), dtype=np.int64)
     true_hist = to_simplex(pi_true)
     pred_hist = to_simplex(pi_hat)
+    rare = np.asarray(
+        [index for index in rare_classes if 0 <= int(index) < len(true_hist)],
+        dtype=np.int64,
+    )
     if rare.size == 0:
         return 0.0
     true_mask = (true_hist[rare] > threshold).astype(np.int32)

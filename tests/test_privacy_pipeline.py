@@ -84,6 +84,7 @@ def _synthetic_run(diversity, tmp, extra=None):
         algorithm="fedkper", agg_strategy="fedkper", fedkper_diversity=diversity,
         device="cpu", lr=0.05, optimizer="sgd", output_dir=str(tmp),
         privacy_delta_dim=16, privacy_probe_batches=2, privacy_save_local=True,
+        rare_classes=(1, 2),
     )
     if extra:
         kwargs.update(extra)
