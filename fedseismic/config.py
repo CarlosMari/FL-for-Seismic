@@ -84,7 +84,12 @@ class RunConfig:
     proto_layer: str = "up4"
     lambda_cap: float = 10.0
     grad_clip: float = 5.0
+    fedkper_diversity: str = "infer"
     local_test_ratio: float = 0.2
+    privacy_delta_dim: int | None = 4096
+    privacy_probe_batches: int | None = 8
+    privacy_log_last_only: bool = False
+    privacy_save_local: bool = True
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
@@ -121,6 +126,11 @@ class RunConfig:
         self.optimizer = str(self.optimizer).strip().lower()
         if self.optimizer not in {"adamw", "sgd"}:
             raise ValueError("optimizer must be 'adamw' or 'sgd'")
+        self.fedkper_diversity = str(self.fedkper_diversity).strip().lower()
+        if self.fedkper_diversity not in {"oracle", "upload", "infer"}:
+            raise ValueError("fedkper_diversity must be 'oracle', 'upload', or 'infer'")
+        if self.privacy_delta_dim is not None and self.privacy_delta_dim < 1:
+            raise ValueError("privacy_delta_dim must be positive or null")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",
@@ -138,3 +148,13 @@ class RunConfig:
     def from_json(cls, path: str | Path) -> "RunConfig":
         with Path(path).open(encoding="utf-8") as handle:
             return cls.from_mapping(json.load(handle))
+
+    def to_dict(self) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        payload = asdict(self)
+        payload["checkpoint_policy"] = self.checkpoint_policy.value
+        payload["rare_classes"] = list(self.rare_classes)
+        extra = payload.pop("extra", {}) or {}
+        payload.update(extra)
+        return payload

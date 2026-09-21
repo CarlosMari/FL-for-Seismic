@@ -1,6 +1,8 @@
 """Multi-seed experiment entry point."""
 
 from dataclasses import dataclass
+from pathlib import Path
+import json
 
 import numpy as np
 import torch
@@ -38,6 +40,7 @@ from .losses import (
     UnifiedFocalLoss,
 )
 from .models import FedAvgNetCIFAR, MedMNISTNet, UNet
+from .privacy.log import PrivacyLogger
 
 
 @dataclass
@@ -71,6 +74,24 @@ class SeedResults:
         if not self.miou_final or not self.local_mean:
             return float("nan")
         return 0.5 * (float(np.mean(self.miou_final)) + float(np.mean(self.local_mean)))
+
+
+@dataclass
+class FederatedData:
+    train_labels: np.ndarray
+    train_parts: list
+    loaders: list
+    client_tests: list
+    tests: dict
+    model_factory: object
+    client_info: list
+
+    @property
+    def probe_loader(self):
+        entry = self.tests.get("test1")
+        if entry is None:
+            return None
+        return entry[0] if isinstance(entry, tuple) else entry
 
 
 def _seed_everything(seed):
@@ -230,15 +251,9 @@ def _setup_medmnist(cfg, seed, rng):
     return train_targets, train_parts, loaders, client_tests, tests, model_factory
 
 
-def _last_or_nan(values):
-    measured = [value for value in values if value is not None]
-    return float(measured[-1]) if measured else float("nan")
-
-
-def _run_seed(cfg, seed):
+def build_federated_run(cfg: RunConfig, seed):
+    """Partition data, build loaders, and return everything a seed run needs."""
     _required_paths(cfg)
-    _seed_everything(seed)
-    cfg.device = resolve_device(cfg.device)
     rng = np.random.RandomState(seed)
     if cfg.dataset == DatasetName.CIFAR10.value:
         train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_cifar(
@@ -252,13 +267,56 @@ def _run_seed(cfg, seed):
         train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_seismic(
             cfg, seed, rng,
         )
-    model = model_factory()
+    client_info = compute_client_class_info(
+        train_labels, train_parts, cfg.num_classes, cfg.rare_classes,
+    )
+    return FederatedData(
+        train_labels=train_labels, train_parts=train_parts, loaders=loaders,
+        client_tests=client_tests, tests=tests, model_factory=model_factory,
+        client_info=client_info,
+    )
+
+
+def _privacy_logger(cfg, seed_dir):
+    if not cfg.output_dir:
+        return None
+    return PrivacyLogger(
+        seed_dir,
+        projection_dim=cfg.privacy_delta_dim,
+        projection_seed=cfg.seed,
+        log_last_only=cfg.privacy_log_last_only,
+        save_local=cfg.privacy_save_local,
+    )
+
+
+def _last_or_nan(values):
+    measured = [value for value in values if value is not None]
+    return float(measured[-1]) if measured else float("nan")
+
+
+def _run_seed(cfg, seed):
+    _seed_everything(seed)
+    cfg.device = resolve_device(cfg.device)
+    data = build_federated_run(cfg, seed)
+    seed_dir = None
+    logger = None
+    if cfg.output_dir:
+        seed_dir = Path(cfg.output_dir)
+        if seed_dir.name != f"seed_{seed}":
+            seed_dir = seed_dir / f"seed_{seed}"
+        logger = _privacy_logger(cfg, seed_dir)
+        if logger is not None:
+            logger.write_ground_truth(
+                [info["class_fracs"] for info in data.client_info],
+                rare_classes=cfg.rare_classes,
+            )
+    model = data.model_factory()
     server = Server(
-        model=model, client_loaders=loaders, criterion=_criterion(cfg, train_labels),
-        config=cfg, client_info=compute_client_class_info(
-            train_labels, train_parts, cfg.num_classes, cfg.rare_classes,
-        ), model_factory=model_factory, test_loaders=tests,
-        client_test_loaders=client_tests, rng=rng,
+        model=model, client_loaders=data.loaders, criterion=_criterion(cfg, data.train_labels),
+        config=cfg, client_info=data.client_info, model_factory=data.model_factory,
+        test_loaders=data.tests, client_test_loaders=data.client_tests,
+        rng=np.random.RandomState(seed), probe_loader=data.probe_loader,
+        privacy_logger=logger,
     )
     history = server.run()
     measured = [record.miou_final for record in history if record.miou_final is not None]
@@ -278,12 +336,27 @@ def _run_seed(cfg, seed):
     else:
         best = final
     c5 = float(history[-1].per_class_iou[5]) if history and len(history[-1].per_class_iou) > 5 else 0.0
+    local_mean = _last_or_nan([record.miou_local_mean for record in history])
+    local_worst = _last_or_nan([record.miou_local_worst for record in history])
+    global_on_local = _last_or_nan([record.miou_global_on_local for record in history])
+    if logger is not None:
+        logger.write_meta({
+            "seed": seed,
+            "config": cfg.to_dict(),
+            "utility": {
+                "local_mean": local_mean,
+                "local_worst": local_worst,
+                "global_on_local": global_on_local,
+                "global_score": final,
+            },
+        })
+        (Path(seed_dir) / "results.json").write_text(json.dumps({
+            "final": final, "best": best, "c5": c5,
+            "local_mean": local_mean, "local_worst": local_worst,
+            "global_on_local": global_on_local,
+        }, indent=2), encoding="utf-8")
     return (
-        final, best, c5,
-        _last_or_nan([record.miou_local_mean for record in history]),
-        _last_or_nan([record.miou_local_worst for record in history]),
-        _last_or_nan([record.miou_global_on_local for record in history]),
-        history,
+        final, best, c5, local_mean, local_worst, global_on_local, history,
     )
 
 
