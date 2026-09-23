@@ -6,6 +6,7 @@ from .cifar import (
     load_cifar10,
     partition_dirichlet,
     partition_iid_indices,
+    partition_presence,
 )
 from .medmnist import (
     MEDMNIST_SPECS,
@@ -26,7 +27,7 @@ __all__ = [
     "InlineLoader", "load_and_normalize", "build_test_loader", "build_client_loaders",
     "partition_iid", "partition_noniid", "split_client_local_test",
     "compute_client_class_info",
-    "load_cifar10", "partition_dirichlet", "partition_iid_indices",
+    "load_cifar10", "partition_dirichlet", "partition_iid_indices", "partition_presence",
     "build_cifar_loaders", "build_cifar_test_loader",
     "MEDMNIST_SPECS", "load_medmnist", "build_medmnist_loaders",
     "build_medmnist_test_loader",

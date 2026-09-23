@@ -135,10 +135,17 @@ def evaluate_run(run_dir, data=None, device=None, max_probe_batches=None,
         clone_model_from_state(factory, global_state, device=device)
         if global_state is not None else None
     )
-    nonmember_loader = probe
     for client in clients:
         local_model = clone_model_from_state(factory, local_states[client], device=device)
         train_loader = data.loaders[client]
+        # Same-distribution holdout. The public probe has a different class mix,
+        # so using it as the non-member set scores label shift rather than membership.
+        nonmember_loader = None
+        client_tests = getattr(data, "client_tests", None)
+        if client_tests and client < len(client_tests):
+            holdout = client_tests[client]
+            if holdout is not None and len(holdout.dataset):
+                nonmember_loader = holdout
         member_loss, member_conf = example_membership_scores(
             local_model, train_loader, device, max_mia_examples,
         )
@@ -187,8 +194,6 @@ def evaluate_run(run_dir, data=None, device=None, max_probe_batches=None,
     else:
         result["personalization_gap"] = float("nan")
     result["leakage"] = result["softmax"]["leakage"]
-    if result["leakage"] != result["leakage"]:
-        result["leakage"] = result["last_layer"]["leakage"]
     return result
 
 

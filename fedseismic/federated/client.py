@@ -11,11 +11,20 @@ def _logits(output):
     return output[0] if isinstance(output, (tuple, list)) else output
 
 
+def _with_log_prior(logits, log_prior):
+    if log_prior is None:
+        return logits
+    if logits.ndim == 4:
+        return logits + log_prior.view(1, -1, 1, 1)
+    return logits + log_prior.view(1, -1)
+
+
 class ClientTrainer:
     """Download global weights, train locally, upload weights, then reset."""
 
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
-                 lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9):
+                 lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9,
+                 num_classes=None, logit_adjust=False):
         self.model = model
         self.loader = loader
         self.criterion = criterion
@@ -25,6 +34,8 @@ class ClientTrainer:
         self.weight_decay = weight_decay
         self.optimizer_name = str(optimizer).strip().lower()
         self.momentum = momentum
+        self.num_classes = num_classes
+        self.logit_adjust = bool(logit_adjust)
         self.optimizer = None
 
     def _make_optimizer(self):
@@ -44,15 +55,25 @@ class ClientTrainer:
         self.model.to(self.device)
         return self
 
+    def _log_prior(self):
+        if not self.logit_adjust or not self.num_classes:
+            return None
+        pi = class_frequency(self.loader, self.num_classes)
+        return torch.as_tensor(
+            np.log(np.clip(pi, 1e-8, None)), device=self.device, dtype=torch.float,
+        )
+
     def train(self, global_state=None):
         self.model.train()
         self.model.to(self.device)
         self.optimizer = self._make_optimizer()
+        log_prior = self._log_prior()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)
                 targets = targets.to(self.device, dtype=torch.long)
-                loss = self.criterion(_logits(self.model(images)), targets)
+                logits = _with_log_prior(_logits(self.model(images)), log_prior)
+                loss = self.criterion(logits, targets)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -95,6 +116,58 @@ class FedProxClientTrainer(ClientTrainer):
                 loss.backward()
                 self.optimizer.step()
         return self
+
+
+class DittoClientTrainer(ClientTrainer):
+    """Personalized model stays on the client. The upload is plain local SGD.
+
+    Li et al., ICLR 2021. The personal weights minimize cross-entropy plus a
+    penalty toward the current global model, and they are never uploaded.
+    """
+
+    def __init__(self, *args, ditto_lambda=1.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ditto_lambda = ditto_lambda
+        self.personal_state = None
+        self._upload_state = None
+
+    def train(self, global_state=None):
+        if global_state is None:
+            global_state = deepcopy(self.model.state_dict())
+        self.download(global_state)
+        super().train(global_state=global_state)
+        self._upload_state = deepcopy(self.model.state_dict())
+
+        if self.personal_state is None:
+            self.download(global_state)
+        else:
+            self.download(self.personal_state)
+        global_params = [
+            global_state[name].detach().to(self.device)
+            for name, _ in self.model.named_parameters()
+        ]
+        self.model.train()
+        self.optimizer = self._make_optimizer()
+        for _ in range(self.local_epochs):
+            for images, targets, _ in self.loader:
+                images = images.to(self.device, dtype=torch.float)
+                targets = targets.to(self.device, dtype=torch.long)
+                loss = self.criterion(_logits(self.model(images)), targets)
+                proximal = torch.zeros((), device=self.device)
+                for parameter, global_parameter in zip(self.model.parameters(), global_params):
+                    proximal = proximal + (parameter - global_parameter).norm(2) ** 2
+                loss = loss + (self.ditto_lambda / 2.0) * proximal
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+        self.personal_state = deepcopy(self.model.state_dict())
+        self.download(self._upload_state)
+        return self
+
+    def upload(self):
+        if self._upload_state is None:
+            return super().upload()
+        return deepcopy(self._upload_state)
 
 
 class FedBNClientTrainer(ClientTrainer):

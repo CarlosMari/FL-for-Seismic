@@ -24,6 +24,7 @@ from .data import (
     load_cifar10,
     load_medmnist,
     partition_dirichlet,
+    partition_presence,
     partition_iid,
     partition_iid_indices,
     partition_noniid,
@@ -222,11 +223,13 @@ def _setup_medmnist(cfg, seed, rng):
         cfg.dataset, cfg.data_root,
     )
     cfg.num_classes = spec["n_classes"]
-    partitions = (
-        partition_dirichlet(train_targets, cfg.num_clients, cfg.partition_alpha, rng)
-        if cfg.split == "noniid"
-        else partition_iid_indices(len(train_targets), cfg.num_clients, rng)
-    )
+    if cfg.presence_rehearsal:
+        partitions, rare = partition_presence(train_targets, cfg.num_clients, rng)
+        cfg.rare_classes = tuple(int(class_index) for class_index in rare)
+    elif cfg.split == "noniid":
+        partitions = partition_dirichlet(train_targets, cfg.num_clients, cfg.partition_alpha, rng)
+    else:
+        partitions = partition_iid_indices(len(train_targets), cfg.num_clients, rng)
     train_parts, test_parts = split_client_local_test(
         partitions, cfg.local_test_ratio, rng=rng,
     )

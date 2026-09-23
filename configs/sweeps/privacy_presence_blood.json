@@ -1,0 +1,17 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/privacy_presence",
+  "num_rounds": 20,
+  "num_clients": 80,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg", "fedkper"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "lambda_cap": [10],
+  "fedkper_diversity": ["infer"],
+  "oracle_reference": false,
+  "presence_rehearsal": true,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

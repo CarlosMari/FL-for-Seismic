@@ -90,6 +90,10 @@ class RunConfig:
     privacy_probe_batches: int | None = 8
     privacy_log_last_only: bool = False
     privacy_save_local: bool = True
+    privacy_round_batches: int | None = None
+    ditto_lambda: float = 1.0
+    logit_adjust: bool = False
+    presence_rehearsal: bool = False
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL

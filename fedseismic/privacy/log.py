@@ -107,6 +107,18 @@ class PrivacyLogger:
             local_dir(self.run_dir) / f"client_{int(client):03d}.pt",
         )
 
+    def append_round_score(self, record):
+        """One JSON line per participation, including the global the client received."""
+        path = self.run_dir / "round_scores.jsonl"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+
+    def append_history(self, record):
+        """One JSON line per round: official-test accuracy of the aggregated model."""
+        path = self.run_dir / "history.jsonl"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+
     def write_global(self, state):
         torch.save(
             {key: tensor.detach().cpu() for key, tensor in state.items()},

@@ -1,0 +1,14 @@
+{
+  "base": "configs/fedkper_cifar10.json",
+  "output_root": "results/privacy_cifar_fedlc",
+  "num_rounds": 40,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "oracle_reference": false,
+  "logit_adjust": true,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

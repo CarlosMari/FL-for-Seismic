@@ -56,5 +56,7 @@ python -m fedseismic.cli plot --csv results/privacy_boundary/summary.csv --out r
 Seismic uses `configs/sweeps/privacy_boundary_seismic.json`. The plotted curve is
 personalization gap vs leakage `L = 1 - TV(π, π̂)`.
 
+See [metrics.md](metrics.md) for how each score is calculated and what it means.
+
 # Additional Resources
 1. [Facies Classification Paper](https://arxiv.org/pdf/1901.07659)

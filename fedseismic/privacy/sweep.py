@@ -92,6 +92,16 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["num_clients"] = spec["num_clients"]
     if spec.get("sample_ratio") is not None:
         updates["sample_ratio"] = spec["sample_ratio"]
+    if spec.get("privacy_round_batches") is not None:
+        updates["privacy_round_batches"] = spec["privacy_round_batches"]
+    if spec.get("ditto_lambda") is not None:
+        updates["ditto_lambda"] = spec["ditto_lambda"]
+    if spec.get("privacy_log_last_only") is not None:
+        updates["privacy_log_last_only"] = spec["privacy_log_last_only"]
+    if spec.get("logit_adjust") is not None:
+        updates["logit_adjust"] = spec["logit_adjust"]
+    if spec.get("presence_rehearsal") is not None:
+        updates["presence_rehearsal"] = spec["presence_rehearsal"]
     if job.get("lambda_cap") is not None:
         updates["lambda_cap"] = job["lambda_cap"]
     if job.get("fedkper_diversity"):
@@ -110,6 +120,7 @@ def run_sweep(spec, device=None, skip_attack=False):
     for job in jobs:
         for seed in seeds:
             cell_dir = output_root / job["name"] / f"seed_{seed}"
+            print(f"running {job['name']} seed {seed}", flush=True)
             cfg = _cell_config(base, spec, job, seed, cell_dir, device=device)
             run(cfg, seeds=[seed])
             if skip_attack:

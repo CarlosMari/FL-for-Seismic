@@ -13,8 +13,12 @@ from fedseismic.federated.aggregation import is_batchnorm_key
 from .metrics import to_simplex
 
 
-def softmax_prior(model, loader, num_classes, device="cpu", max_batches=None):
-    """Mean predicted class prior on an unlabeled public probe set."""
+def softmax_prior(model, loader, num_classes, device="cpu", max_batches=None, start_batch=0):
+    """Mean predicted class prior on an unlabeled public probe set.
+
+    ``start_batch`` skips the batches FedKPer's aggregation weight already saw.
+    ``max_batches`` counts only the batches after that skip.
+    """
     if loader is None:
         raise ValueError("softmax_prior needs a probe loader")
     model.eval()
@@ -23,7 +27,9 @@ def softmax_prior(model, loader, num_classes, device="cpu", max_batches=None):
     count = 0
     with torch.no_grad():
         for batch_index, batch in enumerate(loader):
-            if max_batches is not None and batch_index >= max_batches:
+            if batch_index < start_batch:
+                continue
+            if max_batches is not None and count >= max_batches:
                 break
             images = batch[0].to(device, dtype=torch.float)
             logits = _logits(model(images))
@@ -35,6 +41,32 @@ def softmax_prior(model, loader, num_classes, device="cpu", max_batches=None):
             count += 1
     if count == 0:
         return np.full(num_classes, 1.0 / max(num_classes, 1), dtype=np.float64)
+    return (total / count).detach().cpu().numpy()
+
+
+def mean_logits(model, loader, num_classes, device="cpu", max_batches=None, start_batch=0):
+    """Mean logits on the same probe window as ``softmax_prior``."""
+    if loader is None:
+        raise ValueError("mean_logits needs a probe loader")
+    model.eval()
+    model.to(device)
+    total = torch.zeros(num_classes, device=device, dtype=torch.float64)
+    count = 0
+    with torch.no_grad():
+        for batch_index, batch in enumerate(loader):
+            if batch_index < start_batch:
+                continue
+            if max_batches is not None and count >= max_batches:
+                break
+            images = batch[0].to(device, dtype=torch.float)
+            logits = _logits(model(images))
+            if logits.ndim == 4:
+                total = total + logits.mean(dim=(0, 2, 3)).double()
+            else:
+                total = total + logits.mean(dim=0).double()
+            count += 1
+    if count == 0:
+        return np.zeros(num_classes, dtype=np.float64)
     return (total / count).detach().cpu().numpy()
 
 
