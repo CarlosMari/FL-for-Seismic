@@ -1,0 +1,16 @@
+{
+  "base": "configs/fedkper_organcmnist.json",
+  "output_root": "results/privacy_logit_organc",
+  "num_rounds": 40,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg", "fedkper"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "lambda_cap": [10],
+  "fedkper_diversity": ["infer"],
+  "oracle_reference": false,
+  "logit_adjust": true,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

@@ -9,7 +9,7 @@ from copy import deepcopy
 import torch
 import torch.nn.functional as F
 
-from .client import ClientTrainer, _logits
+from .client import ClientTrainer, _logits, _with_log_prior
 
 
 class FedKPerClientTrainer(ClientTrainer):
@@ -29,6 +29,7 @@ class FedKPerClientTrainer(ClientTrainer):
         self.model.train()
         self.model.to(self.device)
         self.optimizer = self._make_optimizer()
+        log_prior = self._log_prior()
         for _ in range(self.local_epochs):
             for images, targets, _ in self.loader:
                 images = images.to(self.device, dtype=torch.float)
@@ -38,7 +39,10 @@ class FedKPerClientTrainer(ClientTrainer):
                     global_logits = _logits(global_model(images))
                     teacher_ce = F.cross_entropy(global_logits, targets)
                     lam = min(self.lambda_cap, 1.0 / float(teacher_ce.clamp(min=1e-8)))
-                loss = F.cross_entropy(logits, targets) + lam * _distillation_kl(logits, global_logits)
+                loss = (
+                    F.cross_entropy(_with_log_prior(logits, log_prior), targets)
+                    + lam * _distillation_kl(logits, global_logits)
+                )
                 self.optimizer.zero_grad()
                 loss.backward()
                 if self.grad_clip is not None and self.grad_clip > 0:

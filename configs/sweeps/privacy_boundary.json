@@ -1,0 +1,15 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/privacy_boundary",
+  "num_rounds": 40,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg", "fedprox", "fedbn", "fedkper"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1},
+    {"split": "noniid", "partition_alpha": 1.0},
+    {"split": "iid", "partition_alpha": 0.1}
+  ],
+  "lambda_cap": [0, 1, 10],
+  "fedkper_diversity": ["upload", "infer"],
+  "oracle_reference": true
+}

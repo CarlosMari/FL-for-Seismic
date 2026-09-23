@@ -31,5 +31,32 @@ One of the ways we simulate this data heterogeneity is via a Dirichlet distribut
 by an alpha parameter (```--partition_alpha```) that makes the client partition more
 heterogeneous.
 
+# Privacy–personalization boundary
+The `fedseismic` entry point can log the honest-but-curious server view (weight
+deltas, last-layer tensors, BatchNorm stats if present) separately from each
+client's true label histogram π.
+
+FedKPer aggregation no longer assumes the server already knows π. Set
+`fedkper_diversity` to:
+
+- `infer` (default): estimate π from the uploaded model on a public unlabeled probe set
+- `upload`: the client sends its histogram with the update (direct leak)
+- `oracle`: simulator upper bound using partition labels (not a real protocol)
+
+BloodMNIST first, then the same attacker on seismic pixel histograms (including
+rare-class 4/5 presence):
+
+```
+python -m fedseismic.cli run --config configs/fedkper_bloodmnist.json --output-dir results/demo --device cpu
+python -m fedseismic.cli attack --run-dir results/demo
+python -m fedseismic.cli sweep --config configs/sweeps/privacy_boundary.json --device cpu
+python -m fedseismic.cli plot --csv results/privacy_boundary/summary.csv --out results/privacy_boundary/curve.png
+```
+
+Seismic uses `configs/sweeps/privacy_boundary_seismic.json`. The plotted curve is
+personalization gap vs leakage `L = 1 - TV(π, π̂)`.
+
+See [metrics.md](metrics.md) for how each score is calculated and what it means.
+
 # Additional Resources
 1. [Facies Classification Paper](https://arxiv.org/pdf/1901.07659)

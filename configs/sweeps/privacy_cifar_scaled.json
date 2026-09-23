@@ -1,0 +1,16 @@
+{
+  "base": "configs/fedkper_cifar10.json",
+  "output_root": "results/privacy_cifar_scaled",
+  "num_clients": 100,
+  "num_rounds": 100,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg", "fedper", "fedkper"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "lambda_cap": [10],
+  "fedkper_diversity": ["infer"],
+  "oracle_reference": false,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

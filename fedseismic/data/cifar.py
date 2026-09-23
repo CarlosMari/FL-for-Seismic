@@ -64,6 +64,43 @@ def partition_dirichlet(targets, num_clients, alpha, rng):
     return [sorted(indices) for indices in client_indices]
 
 
+def partition_presence(targets, num_clients, rng, n_rare=2, absent_fraction=0.5,
+                       rate_low=0.01, rate_high=0.05, alpha=1.0):
+    """Most classes are a mild Dirichlet split. The rarest classes are not.
+
+    Half the clients, by default, receive none of a rare class. The others
+    receive enough that the class is between ``rate_low`` and ``rate_high``
+    of that client's data. Leftover rare images are left out on purpose.
+    Returns ``(partitions, rare_class_indices)``.
+    """
+    targets = np.asarray(targets).reshape(-1)
+    counts = np.bincount(targets)
+    rare = [int(index) for index in np.argsort(counts)[:n_rare]]
+    base_ids = np.where(~np.isin(targets, rare))[0]
+    relative = partition_dirichlet(targets[base_ids], num_clients, alpha, rng)
+    parts = [[int(base_ids[index]) for index in client] for client in relative]
+    for class_index in rare:
+        class_ids = rng.permutation(np.where(targets == class_index)[0])
+        n_absent = int(round(absent_fraction * num_clients))
+        absent = set(int(client) for client in rng.choice(num_clients, size=n_absent, replace=False))
+        cursor = 0
+        for client in rng.permutation(num_clients):
+            if int(client) in absent or cursor >= len(class_ids):
+                continue
+            rate = float(rng.uniform(rate_low, rate_high))
+            want = max(1, int(round(rate / max(1.0 - rate, 1e-6) * max(len(parts[int(client)]), 1))))
+            take = class_ids[cursor:cursor + want]
+            cursor += len(take)
+            parts[int(client)].extend(int(index) for index in take)
+    for client, indices in enumerate(parts):
+        if len(indices) < 2:
+            donor = max(range(num_clients), key=lambda other: len(parts[other]))
+            move = parts[donor][:2]
+            parts[donor] = parts[donor][2:]
+            parts[client] = list(indices) + move
+    return [sorted(set(indices)) for indices in parts], tuple(rare)
+
+
 def partition_iid_indices(num_samples, num_clients, rng):
     order = rng.permutation(num_samples)
     chunk = num_samples // num_clients
