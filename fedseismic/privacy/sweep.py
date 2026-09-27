@@ -23,9 +23,12 @@ def _job_name(job):
     lam = job.get("lambda_cap")
     lam_tag = f"l{lam}" if lam is not None else "lNA"
     diversity = job.get("fedkper_diversity") or "na"
-    return (
+    name = (
         f"{job['algorithm']}_{job['split']}_{alpha_tag}_{lam_tag}_d{diversity}"
     )
+    if job.get("dp_noise_multiplier") is not None:
+        name = f"{name}_s{job['dp_noise_multiplier']}"
+    return name
 
 
 def expand_jobs(spec):
@@ -60,16 +63,23 @@ def expand_jobs(spec):
                     job["agg_strategy"] = "fedkper"
                     jobs.append(job)
             else:
-                job = dict(base)
-                job["lambda_cap"] = None
-                job["fedkper_diversity"] = None
-                if algorithm == "fedbn":
-                    job["agg_strategy"] = "equal"
-                elif algorithm == "fedprox":
-                    job["agg_strategy"] = "equal"
-                else:
-                    job["agg_strategy"] = het.get("agg_strategy", "equal")
-                jobs.append(job)
+                noises = spec.get("dp_noise_multiplier") if algorithm == "dpfedavg" else [None]
+                if not isinstance(noises, list):
+                    noises = [noises]
+                for noise in noises:
+                    job = dict(base)
+                    job["lambda_cap"] = None
+                    job["fedkper_diversity"] = None
+                    if algorithm == "fedbn":
+                        job["agg_strategy"] = "equal"
+                    elif algorithm == "fedprox":
+                        job["agg_strategy"] = "equal"
+                    else:
+                        job["agg_strategy"] = het.get("agg_strategy", "equal")
+                    if noise is not None:
+                        job["dp_noise_multiplier"] = noise
+                        job["dp_clip_norm"] = spec.get("dp_clip_norm", 5.0)
+                    jobs.append(job)
     for job in jobs:
         job["name"] = _job_name(job)
     return jobs
@@ -100,8 +110,18 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["privacy_log_last_only"] = spec["privacy_log_last_only"]
     if spec.get("logit_adjust") is not None:
         updates["logit_adjust"] = spec["logit_adjust"]
+    if spec.get("class_reweight") is not None:
+        updates["class_reweight"] = spec["class_reweight"]
+    if spec.get("public_pad_per_class") is not None:
+        updates["public_pad_per_class"] = spec["public_pad_per_class"]
+    if spec.get("train_public_pad") is not None:
+        updates["train_public_pad"] = spec["train_public_pad"]
     if spec.get("presence_rehearsal") is not None:
         updates["presence_rehearsal"] = spec["presence_rehearsal"]
+    if job.get("dp_noise_multiplier") is not None:
+        updates["dp_noise_multiplier"] = job["dp_noise_multiplier"]
+    if job.get("dp_clip_norm") is not None:
+        updates["dp_clip_norm"] = job["dp_clip_norm"]
     if job.get("lambda_cap") is not None:
         updates["lambda_cap"] = job["lambda_cap"]
     if job.get("fedkper_diversity"):
@@ -120,6 +140,9 @@ def run_sweep(spec, device=None, skip_attack=False):
     for job in jobs:
         for seed in seeds:
             cell_dir = output_root / job["name"] / f"seed_{seed}"
+            if (cell_dir / "results.json").is_file():
+                print(f"skip {job['name']} seed {seed}", flush=True)
+                continue
             print(f"running {job['name']} seed {seed}", flush=True)
             cfg = _cell_config(base, spec, job, seed, cell_dir, device=device)
             run(cfg, seeds=[seed])

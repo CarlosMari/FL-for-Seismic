@@ -1,13 +1,25 @@
 {
   "base": "configs/fedkper_organcmnist.json",
-  "output_root": "results/privacy_boundary_organc_smoke",
+  "output_root": "results/runs/privacy_boundary_organc_smoke",
   "num_rounds": 5,
-  "seeds": [42],
-  "algorithms": ["fedavg", "fedkper"],
-  "heterogeneity": [
-    {"split": "noniid", "partition_alpha": 0.1}
+  "seeds": [
+    42
   ],
-  "lambda_cap": [10],
-  "fedkper_diversity": ["infer"],
+  "algorithms": [
+    "fedavg",
+    "fedkper"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "lambda_cap": [
+    10
+  ],
+  "fedkper_diversity": [
+    "infer"
+  ],
   "oracle_reference": false
 }

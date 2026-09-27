@@ -8,7 +8,13 @@ import torch
 
 from fedseismic.eval.metrics import _logits, evaluate, evaluate_loader, score_loader
 
-from .aggregation import aggregate_state_dicts, get_agg_weights, is_bn_key, normalized_entropy
+from .aggregation import (
+    aggregate_state_dicts,
+    dp_fedavg_aggregate,
+    get_agg_weights,
+    is_bn_key,
+    normalized_entropy,
+)
 from .client import (
     ClientTrainer,
     DittoClientTrainer,
@@ -17,8 +23,10 @@ from .client import (
     FedVLSClientTrainer,
     class_frequency,
 )
+from .fedbabu import FedBABUClientTrainer
 from .fedkper import FedKPerClientTrainer
 from .fedper import FedPerClientTrainer
+from .fedrod import FedRoDClientTrainer
 from .sampling import sample_clients
 
 
@@ -64,7 +72,7 @@ class Server:
     def __init__(self, model, client_loaders, criterion, config, device=None,
                  client_info=None, model_factory=None, client_trainer_factory=None,
                  test_loaders=None, client_test_loaders=None, rng=None,
-                 probe_loader=None, privacy_logger=None):
+                 probe_loader=None, privacy_logger=None, public_loader=None):
         self.client_loaders = client_loaders
         self.client_test_loaders = client_test_loaders or []
         self.criterion = criterion
@@ -76,6 +84,7 @@ class Server:
         self.client_trainer_factory = client_trainer_factory
         self.test_loaders = test_loaders or {}
         self.probe_loader = probe_loader
+        self.public_loader = public_loader
         self.privacy_logger = privacy_logger
         self.rng = rng or np.random.RandomState(config.seed)
         self.history = []
@@ -91,6 +100,8 @@ class Server:
                     "fedvls": FedVLSClientTrainer,
                     "fedkper": FedKPerClientTrainer,
                     "fedper": FedPerClientTrainer,
+                    "fedbabu": FedBABUClientTrainer,
+                    "fedrod": FedRoDClientTrainer,
                     "ditto": DittoClientTrainer,
                 }.get(self.config.algorithm, ClientTrainer)
             kwargs = dict(
@@ -101,6 +112,10 @@ class Server:
                 optimizer=self.config.optimizer, momentum=self.config.momentum,
                 num_classes=self.config.num_classes,
                 logit_adjust=bool(getattr(self.config, "logit_adjust", False)),
+                class_reweight=bool(getattr(self.config, "class_reweight", False)),
+                public_loader=(
+                    self.public_loader if getattr(self.config, "train_public_pad", False) else None
+                ),
             )
             if factory is FedProxClientTrainer:
                 kwargs["mu"] = self.config.mu
@@ -126,6 +141,14 @@ class Server:
                    client_train_accs=None, client_histograms=None):
         strategy = self._aggregate_strategy()
         if strategy == "equal":
+            if self.config.algorithm == "dpfedavg":
+                return dp_fedavg_aggregate(
+                    self.model.state_dict(),
+                    states,
+                    clip_norm=self.config.dp_clip_norm,
+                    noise_multiplier=self.config.dp_noise_multiplier,
+                    rng=self.rng,
+                )
             if self.config.algorithm == "fedbn":
                 averaged = deepcopy(states[0])
                 for key in averaged:
@@ -225,6 +248,9 @@ class Server:
                     round_index + 1, client, uploaded, global_state,
                     scalars=scalars, is_last_round=last_round,
                 )
+                personal = getattr(trainer, "personal_state", None)
+                if personal is not None:
+                    self.privacy_logger.write_personal(client, personal)
                 self._log_round_scores(round_index + 1, client, trainer.model, global_state)
             trainer.reset()
         self.model.load_state_dict(self._aggregate(
@@ -292,12 +318,26 @@ class Server:
         bias_delta = None
         if local_bias is not None and global_bias is not None:
             bias_delta = (np.asarray(local_bias) - np.asarray(global_bias)).reshape(-1).tolist()
+        local_weight, _ = extract_last_linear(local_model.state_dict())
+        global_weight, _ = extract_last_linear(global_state)
+        if local_weight is not None and global_weight is not None and local_bias is not None and global_bias is not None:
+            self.privacy_logger.write_head_delta(
+                round_index,
+                client,
+                np.asarray(local_weight) - np.asarray(global_weight),
+                np.asarray(local_bias) - np.asarray(global_bias),
+            )
+        from fedseismic.privacy.whispers import class_accuracy
+
         self.privacy_logger.append_round_score({
             "round": int(round_index),
             "client": int(client),
             "local_softmax": np.asarray(local_hat, dtype=np.float64).tolist(),
             "global_softmax": np.asarray(global_hat, dtype=np.float64).tolist(),
             "bias_delta": bias_delta,
+            "class_acc": class_accuracy(
+                local_model, probe, self.config.num_classes, self.device,
+            ).tolist(),
         })
 
     def evaluate_personalized_local(self):
@@ -366,6 +406,12 @@ class Server:
     def run(self):
         for round_index in range(self.config.num_rounds):
             self.run_round(round_index)
+        if self.config.algorithm == "fedbabu":
+            for client, trainer in self._client_trainers.items():
+                trainer.download(self.model.state_dict())
+                trainer.personalize()
+                if self.privacy_logger is not None and trainer.personal_state is not None:
+                    self.privacy_logger.write_personal(client, trainer.personal_state)
         if self.history:
             self.history[-1].miou_global_on_local = self.evaluate_global_on_local()
             local_mean, local_worst = self.evaluate_personalized_local()

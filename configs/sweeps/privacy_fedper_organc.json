@@ -1,11 +1,20 @@
 {
   "base": "configs/fedkper_organcmnist.json",
-  "output_root": "results/privacy_fedper_organc",
+  "output_root": "results/runs/privacy_fedper_organc",
   "num_rounds": 40,
-  "seeds": [0, 1, 42],
-  "algorithms": ["fedper"],
+  "seeds": [
+    0,
+    1,
+    42
+  ],
+  "algorithms": [
+    "fedper"
+  ],
   "heterogeneity": [
-    {"split": "noniid", "partition_alpha": 0.1}
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
   ],
   "oracle_reference": false,
   "privacy_round_batches": 16,

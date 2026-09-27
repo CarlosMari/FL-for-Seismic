@@ -93,7 +93,12 @@ class RunConfig:
     privacy_round_batches: int | None = None
     ditto_lambda: float = 1.0
     logit_adjust: bool = False
+    class_reweight: bool = False
+    public_pad_per_class: int = 0
+    train_public_pad: bool = False
     presence_rehearsal: bool = False
+    dp_clip_norm: float = 5.0
+    dp_noise_multiplier: float = 1.0
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
@@ -135,6 +140,8 @@ class RunConfig:
             raise ValueError("fedkper_diversity must be 'oracle', 'upload', or 'infer'")
         if self.privacy_delta_dim is not None and self.privacy_delta_dim < 1:
             raise ValueError("privacy_delta_dim must be positive or null")
+        if self.public_pad_per_class < 0:
+            raise ValueError("public_pad_per_class must be non-negative")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",

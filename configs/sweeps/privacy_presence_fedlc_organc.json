@@ -1,0 +1,25 @@
+{
+  "base": "configs/fedkper_organcmnist.json",
+  "output_root": "results/runs/privacy_presence_fedlc_organc",
+  "num_rounds": 20,
+  "num_clients": 80,
+  "seeds": [
+    0,
+    1,
+    42
+  ],
+  "algorithms": [
+    "fedavg"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "logit_adjust": true,
+  "oracle_reference": false,
+  "presence_rehearsal": true,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

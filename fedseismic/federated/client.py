@@ -24,7 +24,8 @@ class ClientTrainer:
 
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
                  lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9,
-                 num_classes=None, logit_adjust=False):
+                 num_classes=None, logit_adjust=False, class_reweight=False,
+                 public_loader=None):
         self.model = model
         self.loader = loader
         self.criterion = criterion
@@ -36,6 +37,8 @@ class ClientTrainer:
         self.momentum = momentum
         self.num_classes = num_classes
         self.logit_adjust = bool(logit_adjust)
+        self.class_reweight = bool(class_reweight)
+        self.public_loader = public_loader
         self.optimizer = None
 
     def _make_optimizer(self):
@@ -63,20 +66,51 @@ class ClientTrainer:
             np.log(np.clip(pi, 1e-8, None)), device=self.device, dtype=torch.float,
         )
 
+    def _class_counts(self, loader):
+        if loader is None or not self.num_classes:
+            return np.zeros(self.num_classes or 0, dtype=np.float64)
+        labels = _dataset_labels(getattr(loader, "dataset", None))
+        if labels is None:
+            return class_frequency(loader, self.num_classes) * max(len(loader.dataset), 1)
+        return np.bincount(np.asarray(labels).astype(int), minlength=self.num_classes).astype(np.float64)
+
+    def _loss_weight(self):
+        """Inverse-frequency weights over the examples this client actually trains on."""
+        if not self.class_reweight or not self.num_classes:
+            return None
+        counts = self._class_counts(self.loader)
+        if self.public_loader is not None:
+            counts = counts + self._class_counts(self.public_loader)
+        present = counts > 0
+        weights = np.zeros(self.num_classes, dtype=np.float64)
+        if present.any():
+            weights[present] = counts[present].sum() / (float(present.sum()) * counts[present])
+        return torch.as_tensor(weights, device=self.device, dtype=torch.float)
+
+    def _train_loaders(self):
+        yield self.loader
+        if self.public_loader is not None:
+            yield self.public_loader
+
     def train(self, global_state=None):
         self.model.train()
         self.model.to(self.device)
         self.optimizer = self._make_optimizer()
         log_prior = self._log_prior()
+        weight = self._loss_weight()
         for _ in range(self.local_epochs):
-            for images, targets, _ in self.loader:
-                images = images.to(self.device, dtype=torch.float)
-                targets = targets.to(self.device, dtype=torch.long)
-                logits = _with_log_prior(_logits(self.model(images)), log_prior)
-                loss = self.criterion(logits, targets)
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+            for loader in self._train_loaders():
+                for images, targets, _ in loader:
+                    images = images.to(self.device, dtype=torch.float)
+                    targets = targets.to(self.device, dtype=torch.long)
+                    logits = _with_log_prior(_logits(self.model(images)), log_prior)
+                    if weight is None:
+                        loss = self.criterion(logits, targets)
+                    else:
+                        loss = F.cross_entropy(logits, targets, weight=weight)
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
         return self
 
     def upload(self):

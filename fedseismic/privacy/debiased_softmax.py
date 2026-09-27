@@ -18,8 +18,10 @@ from scipy.stats import spearmanr
 from fedseismic.config import RunConfig, resolve_device
 from fedseismic.data import MEDMNIST_SPECS, build_medmnist_loaders, load_medmnist, partition_dirichlet
 from fedseismic.federated.client import ClientTrainer, FedProxClientTrainer
+from fedseismic.federated.fedbabu import FedBABUClientTrainer
 from fedseismic.federated.fedkper import FedKPerClientTrainer
 from fedseismic.federated.fedper import FedPerClientTrainer
+from fedseismic.federated.fedrod import FedRoDClientTrainer
 from fedseismic.privacy.estimators import clone_model_from_state
 from fedseismic.privacy.fair_leakage import _split_softmax
 from fedseismic.privacy.log import load_global_state, load_labels, load_local_states, load_meta
@@ -52,6 +54,10 @@ def _trainer(cfg, model, loader, device):
         return FedProxClientTrainer(**common, mu=cfg.mu)
     if cfg.algorithm == "fedper":
         return FedPerClientTrainer(**common)
+    if cfg.algorithm == "fedbabu":
+        return FedBABUClientTrainer(**common)
+    if cfg.algorithm == "fedrod":
+        return FedRoDClientTrainer(**common)
     return ClientTrainer(**common)
 
 

@@ -5,7 +5,7 @@ import unittest
 import torch
 import torch.nn as nn
 
-from fedseismic.privacy.gradient_inversion import reconstruct
+from fedseismic.privacy.gradient_inversion import psnr, reconstruct, ssim, to_unit_interval
 
 
 class _Tiny(nn.Module):
@@ -28,6 +28,12 @@ class GradientInversionTests(unittest.TestCase):
         self.assertEqual(tuple(dummy.shape), tuple(image.shape))
         self.assertTrue(torch.isfinite(dummy).all())
         self.assertGreaterEqual(mse, 0.0)
+
+    def test_identical_pixels_score_as_a_match(self):
+        image = torch.rand(1, 3, 8, 8)
+        unit = to_unit_interval(image, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
+        self.assertGreater(psnr(unit, unit), 40.0)
+        self.assertGreater(ssim(unit, unit), 0.99)
 
 
 if __name__ == "__main__":

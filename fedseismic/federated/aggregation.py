@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 import numpy as np
+import torch
 
 RARE_CLASSES = (4, 5)
 TRAIN_CLASS_PRIOR = np.array(
@@ -31,6 +32,57 @@ def aggregate_state_dicts(state_dicts, weights=None):
         averaged[key] = averaged[key] * w[0]
         for index in range(1, len(state_dicts)):
             averaged[key] = averaged[key] + state_dicts[index][key] * w[index]
+    return averaged
+
+
+def dp_fedavg_aggregate(global_state, uploaded, clip_norm, noise_multiplier, rng):
+    """Average clipped client deltas and add Gaussian noise to the sum.
+
+    Each delta is clipped to ``clip_norm`` in L2. Noise is drawn on the sum
+    with standard deviation ``noise_multiplier * clip_norm``, then the sum is
+    divided by the cohort size. That is the client-level Gaussian mechanism
+    used by DP-FedAvg (McMahan et al., 2018).
+    """
+    if not uploaded:
+        raise ValueError("cannot aggregate an empty collection")
+    clip_norm = float(clip_norm)
+    if clip_norm <= 0:
+        raise ValueError("dp clip norm must be positive")
+    count = len(uploaded)
+    clipped = []
+    for state in uploaded:
+        delta = {}
+        pieces = []
+        for key, value in state.items():
+            tensor = torch.as_tensor(value).detach().float()
+            origin = torch.as_tensor(global_state[key]).detach().float()
+            if torch.is_floating_point(torch.as_tensor(value)):
+                diff = tensor - origin
+                delta[key] = diff
+                pieces.append(diff.reshape(-1))
+            else:
+                delta[key] = None
+        norm = float(torch.cat(pieces).norm()) if pieces else 0.0
+        scale = 1.0 if norm <= clip_norm or norm == 0.0 else clip_norm / norm
+        clipped.append({key: None if diff is None else diff * scale for key, diff in delta.items()})
+    averaged = {}
+    for key, base in global_state.items():
+        base_tensor = torch.as_tensor(base).detach()
+        if not torch.is_floating_point(base_tensor):
+            averaged[key] = base_tensor.clone()
+            continue
+        total = torch.zeros_like(base_tensor, dtype=torch.float)
+        for delta in clipped:
+            total = total + delta[key]
+        mean = total / count
+        std = float(noise_multiplier) * clip_norm / count
+        if std > 0:
+            noise = torch.tensor(
+                rng.normal(0.0, std, size=tuple(mean.shape)),
+                dtype=torch.float, device=mean.device,
+            )
+            mean = mean + noise
+        averaged[key] = (base_tensor.float() + mean).to(dtype=base_tensor.dtype)
     return averaged
 
 

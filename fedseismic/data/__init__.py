@@ -17,8 +17,11 @@ from .medmnist import (
 from .partition import (
     build_client_loaders,
     compute_client_class_info,
+    drop_indices,
+    holdout_balanced_pad,
     partition_iid,
     partition_noniid,
+    remap_partitions,
     split_client_local_test,
 )
 from .seismic import InlineLoader, build_test_loader, load_and_normalize
@@ -26,6 +29,7 @@ from .seismic import InlineLoader, build_test_loader, load_and_normalize
 __all__ = [
     "InlineLoader", "load_and_normalize", "build_test_loader", "build_client_loaders",
     "partition_iid", "partition_noniid", "split_client_local_test",
+    "holdout_balanced_pad", "drop_indices", "remap_partitions",
     "compute_client_class_info",
     "load_cifar10", "partition_dirichlet", "partition_iid_indices", "partition_presence",
     "build_cifar_loaders", "build_cifar_test_loader",

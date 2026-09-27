@@ -31,6 +31,40 @@ def partition_iid(num_crosslines, num_clients, rng):
     return partitions
 
 
+def holdout_balanced_pad(targets, per_class, rng):
+    """A balanced public pad, leaving at least one image of each class to clients.
+
+    Indices are into ``targets``. The same seed must be used for every method
+    that shares a comparison, so the client split does not move.
+    """
+    targets = np.asarray(targets).reshape(-1)
+    if per_class < 1 or len(targets) == 0:
+        return []
+    chosen = []
+    for class_index in range(int(targets.max()) + 1):
+        pool = np.flatnonzero(targets == class_index)
+        take = min(int(per_class), max(len(pool) - 1, 0))
+        if take < 1:
+            continue
+        picked = rng.choice(pool, size=take, replace=False)
+        chosen.extend(int(index) for index in np.asarray(picked).reshape(-1))
+    return sorted(chosen)
+
+
+def drop_indices(targets, held_out):
+    """Return ``(kept_targets, kept_positions)`` with ``held_out`` removed."""
+    keep = np.ones(len(targets), dtype=bool)
+    if held_out:
+        keep[np.asarray(held_out, dtype=int)] = False
+    kept = np.flatnonzero(keep)
+    return np.asarray(targets).reshape(-1)[kept], kept
+
+
+def remap_partitions(parts, kept):
+    """Map partition indices from a dropped-index target array back to the original."""
+    return [[int(kept[index]) for index in part] for part in parts]
+
+
 def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
     """Hold out part of each client's own indices.
 

@@ -17,7 +17,9 @@ LABELS_NAME = "labels/pi.json"
 META_NAME = "run_meta.json"
 VIEW_DIR = "view"
 LOCAL_DIR = "local"
+PERSONAL_DIR = "personal"
 GLOBAL_NAME = "global_final.pt"
+HEAD_DIR = "head"
 
 
 def _as_path(run_dir):
@@ -38,6 +40,14 @@ def view_dir(run_dir):
 
 def local_dir(run_dir):
     return _as_path(run_dir) / LOCAL_DIR
+
+
+def personal_dir(run_dir):
+    return _as_path(run_dir) / PERSONAL_DIR
+
+
+def head_dir(run_dir):
+    return _as_path(run_dir) / HEAD_DIR
 
 
 class PrivacyLogger:
@@ -101,10 +111,30 @@ class PrivacyLogger:
         if self.save_local:
             self.write_local(client, uploaded)
 
+    def write_head_delta(self, round_index, client, weight_delta, bias_delta):
+        """Classifier change, upload minus the global the client received."""
+        folder = head_dir(self.run_dir)
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"round_{int(round_index):03d}_client_{int(client):03d}.npz"
+        np.savez_compressed(
+            path,
+            weight_delta=np.asarray(weight_delta, dtype=np.float32),
+            bias_delta=np.asarray(bias_delta, dtype=np.float32).reshape(-1),
+        )
+
     def write_local(self, client, state):
         torch.save(
             {key: tensor.detach().cpu() for key, tensor in state.items()},
             local_dir(self.run_dir) / f"client_{int(client):03d}.pt",
+        )
+
+    def write_personal(self, client, state):
+        """Deployed weights. FedPer's upload has the global head put back."""
+        folder = personal_dir(self.run_dir)
+        folder.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {key: tensor.detach().cpu() for key, tensor in state.items()},
+            folder / f"client_{int(client):03d}.pt",
         )
 
     def append_round_score(self, record):
@@ -163,15 +193,22 @@ def _load_checkpoint(path):
         return torch.load(path, map_location="cpu")
 
 
-def load_local_states(run_dir):
+def _load_client_states(folder):
     states = {}
-    folder = local_dir(run_dir)
     if not folder.exists():
         return states
     for path in sorted(folder.glob("client_*.pt")):
         client = int(path.stem.split("_")[1])
         states[client] = _load_checkpoint(path)
     return states
+
+
+def load_local_states(run_dir):
+    return _load_client_states(local_dir(run_dir))
+
+
+def load_personal_states(run_dir):
+    return _load_client_states(personal_dir(run_dir))
 
 
 def load_global_state(run_dir):

@@ -20,6 +20,8 @@ from .data import (
     build_medmnist_test_loader,
     build_test_loader,
     compute_client_class_info,
+    drop_indices,
+    holdout_balanced_pad,
     load_and_normalize,
     load_cifar10,
     load_medmnist,
@@ -28,6 +30,7 @@ from .data import (
     partition_iid,
     partition_iid_indices,
     partition_noniid,
+    remap_partitions,
     split_client_local_test,
 )
 from .federated.server import RoundRecord, Server
@@ -86,6 +89,7 @@ class FederatedData:
     tests: dict
     model_factory: object
     client_info: list
+    public_loader: object = None
 
     @property
     def probe_loader(self):
@@ -187,18 +191,37 @@ def _setup_seismic(cfg, seed, rng):
     model_factory = lambda: UNet(
         1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups,
     )
-    return train_labels, train_parts, loaders, client_tests, tests, model_factory
+    return train_labels, train_parts, loaders, client_tests, tests, model_factory, None
+
+
+def _public_pad(cfg, targets, seed):
+    """Hold a balanced pad out of the training pool. ``kept`` maps subset indices back."""
+    per_class = int(getattr(cfg, "public_pad_per_class", 0) or 0)
+    if per_class < 1:
+        return targets, None, []
+    pad = holdout_balanced_pad(targets, per_class, np.random.RandomState(int(seed) + 17001))
+    kept_targets, kept = drop_indices(targets, pad)
+    return kept_targets, kept, pad
+
+
+def _client_partitions(cfg, targets, rng):
+    if cfg.presence_rehearsal:
+        partitions, rare = partition_presence(targets, cfg.num_clients, rng)
+        cfg.rare_classes = tuple(int(class_index) for class_index in rare)
+        return partitions
+    if cfg.split == "noniid":
+        return partition_dirichlet(targets, cfg.num_clients, cfg.partition_alpha, rng)
+    return partition_iid_indices(len(targets), cfg.num_clients, rng)
 
 
 def _setup_cifar(cfg, seed, rng):
     train_images, train_targets, test_images, test_targets = load_cifar10(cfg.data_root)
     if cfg.num_classes != 10:
         cfg.num_classes = 10
-    partitions = (
-        partition_dirichlet(train_targets, cfg.num_clients, cfg.partition_alpha, rng)
-        if cfg.split == "noniid"
-        else partition_iid_indices(len(train_targets), cfg.num_clients, rng)
-    )
+    pool_targets, kept, pad = _public_pad(cfg, train_targets, seed)
+    partitions = _client_partitions(cfg, pool_targets, rng)
+    if kept is not None:
+        partitions = remap_partitions(partitions, kept)
     train_parts, test_parts = split_client_local_test(
         partitions, cfg.local_test_ratio, rng=rng,
     )
@@ -215,7 +238,12 @@ def _setup_cifar(cfg, seed, rng):
         ),
     }
     model_factory = lambda: FedAvgNetCIFAR(num_classes=cfg.num_classes, in_channels=3)
-    return train_targets, train_parts, loaders, client_tests, tests, model_factory
+    public_loader = None
+    if pad:
+        public_loader = build_cifar_loaders(
+            train_images, train_targets, [pad], cfg.batch_size, train=True, **kwargs,
+        )[0]
+    return train_targets, train_parts, loaders, client_tests, tests, model_factory, public_loader
 
 
 def _setup_medmnist(cfg, seed, rng):
@@ -223,13 +251,10 @@ def _setup_medmnist(cfg, seed, rng):
         cfg.dataset, cfg.data_root,
     )
     cfg.num_classes = spec["n_classes"]
-    if cfg.presence_rehearsal:
-        partitions, rare = partition_presence(train_targets, cfg.num_clients, rng)
-        cfg.rare_classes = tuple(int(class_index) for class_index in rare)
-    elif cfg.split == "noniid":
-        partitions = partition_dirichlet(train_targets, cfg.num_clients, cfg.partition_alpha, rng)
-    else:
-        partitions = partition_iid_indices(len(train_targets), cfg.num_clients, rng)
+    pool_targets, kept, pad = _public_pad(cfg, train_targets, seed)
+    partitions = _client_partitions(cfg, pool_targets, rng)
+    if kept is not None:
+        partitions = remap_partitions(partitions, kept)
     train_parts, test_parts = split_client_local_test(
         partitions, cfg.local_test_ratio, rng=rng,
     )
@@ -251,7 +276,13 @@ def _setup_medmnist(cfg, seed, rng):
     model_factory = lambda: MedMNISTNet(
         num_classes=cfg.num_classes, in_channels=n_channels,
     )
-    return train_targets, train_parts, loaders, client_tests, tests, model_factory
+    public_loader = None
+    if pad:
+        public_loader = build_medmnist_loaders(
+            train_images, train_targets, [pad], cfg.batch_size, n_channels,
+            train=True, **kwargs,
+        )[0]
+    return train_targets, train_parts, loaders, client_tests, tests, model_factory, public_loader
 
 
 def build_federated_run(cfg: RunConfig, seed):
@@ -259,15 +290,15 @@ def build_federated_run(cfg: RunConfig, seed):
     _required_paths(cfg)
     rng = np.random.RandomState(seed)
     if cfg.dataset == DatasetName.CIFAR10.value:
-        train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_cifar(
+        train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_cifar(
             cfg, seed, rng,
         )
     elif cfg.dataset in MEDMNIST_SPECS:
-        train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_medmnist(
+        train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_medmnist(
             cfg, seed, rng,
         )
     else:
-        train_labels, train_parts, loaders, client_tests, tests, model_factory = _setup_seismic(
+        train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_seismic(
             cfg, seed, rng,
         )
     client_info = compute_client_class_info(
@@ -276,7 +307,7 @@ def build_federated_run(cfg: RunConfig, seed):
     return FederatedData(
         train_labels=train_labels, train_parts=train_parts, loaders=loaders,
         client_tests=client_tests, tests=tests, model_factory=model_factory,
-        client_info=client_info,
+        client_info=client_info, public_loader=public_loader,
     )
 
 
@@ -319,7 +350,7 @@ def _run_seed(cfg, seed):
         config=cfg, client_info=data.client_info, model_factory=data.model_factory,
         test_loaders=data.tests, client_test_loaders=data.client_tests,
         rng=np.random.RandomState(seed), probe_loader=data.probe_loader,
-        privacy_logger=logger,
+        privacy_logger=logger, public_loader=data.public_loader,
     )
     history = server.run()
     measured = [record.miou_final for record in history if record.miou_final is not None]

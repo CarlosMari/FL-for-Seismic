@@ -128,6 +128,81 @@ def residual_dprime(run_dir, threshold=1e-3):
     return rows
 
 
+def count_bin(count):
+    """Bucket a class count. Zero is absence; the rest split 1–2, 3–10, and more."""
+    count = int(count)
+    if count <= 0:
+        return "0"
+    if count <= 2:
+        return "1-2"
+    if count <= 10:
+        return "3-10"
+    return ">10"
+
+
+def _percentile_interval(values):
+    values = np.asarray(values, dtype=np.float64)
+    if values.size == 0:
+        return (float("nan"), float("nan"), float("nan"))
+    low, mid, high = np.percentile(values, [2.5, 50, 97.5])
+    return float(low), float(mid), float(high)
+
+
+def cluster_bootstrap_metrics(frame, draws=2000, rng=None):
+    """AUC and TPR at 1% FPR, resampling whole (seed, client) groups.
+
+    Participations of one client are not independent, and neither are the
+    classes inside one participation. The resample unit is the client.
+    """
+    if frame.empty:
+        empty = (float("nan"), float("nan"), float("nan"))
+        return {"auc": empty, "tpr_at_1": empty, "n_clusters": 0}
+    grouped = list(frame.groupby(["seed", "client"], sort=False))
+    tables = [part.reset_index(drop=True) for _, part in grouped]
+    rng = np.random.default_rng(0) if rng is None else rng
+    aucs = []
+    tprs = []
+    count = len(tables)
+    for _ in range(draws):
+        picked = rng.integers(0, count, size=count)
+        sample = pd.concat([tables[index] for index in picked], ignore_index=True)
+        labels = sample["present"].to_numpy()
+        scores = sample["residual"].to_numpy()
+        if len(np.unique(labels)) < 2:
+            continue
+        aucs.append(float(roc_auc_score(labels, scores)))
+        tprs.append(_tpr_at_fpr(labels, scores))
+    return {
+        "auc": _percentile_interval(aucs),
+        "tpr_at_1": _percentile_interval(tprs),
+        "n_clusters": count,
+    }
+
+
+def load_presence_frame(run_dir):
+    """One row per class inside a participation, with the true class mass."""
+    run_dir = Path(run_dir)
+    histograms, _ = load_labels(run_dir)
+    rows = []
+    with (run_dir / "round_scores.jsonl").open(encoding="utf-8") as handle:
+        for line in handle:
+            record = json.loads(line)
+            client = int(record["client"])
+            pi = to_simplex(histograms[client])
+            local_hat = np.asarray(record["local_softmax"], dtype=np.float64)
+            global_hat = np.asarray(record["global_softmax"], dtype=np.float64)
+            for class_index, mass in enumerate(pi):
+                rows.append({
+                    "client": client,
+                    "round": int(record["round"]),
+                    "class_index": int(class_index),
+                    "mass": float(mass),
+                    "present": int(mass > 1e-3),
+                    "residual": float(local_hat[class_index] - global_hat[class_index]),
+                })
+    return pd.DataFrame(rows)
+
+
 def client_bootstrap(values, draws=2000, rng=None):
     """Percentile interval of the client-mean, resampling clients."""
     values = np.asarray(values, dtype=np.float64)
