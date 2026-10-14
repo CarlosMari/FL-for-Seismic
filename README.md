@@ -1,7 +1,69 @@
-# Overview
-This GitHub project is meant to serve as a basic repository for federated learning on natural images and seismic data.
+# FL-for-Seismic: privacy–personalization boundary in federated learning
 
-# Install Environment
+This repo studies what a client's model updates reveal about its data
+composition in cross-silo federated learning: class counts ("how much"),
+which classes are present (support), and how personalization methods
+(FedAvg, FedPer, FedLC, FedBABU, FedRoD, FedKPer, Ditto, balanced gradients)
+change that leakage — on BloodMNIST, OrganCMNIST, CIFAR-10, and the F3
+Netherlands seismic survey. `findings.md` is the lab notebook (dated
+prediction-vs-outcome entries); `metrics.md` defines every score;
+`todo.md` tracks the work plan.
+
+# Install
+
+```
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Versions in `requirements.txt` are pinned to the ones the reported results
+were produced with (torch 2.9, scikit-learn 1.8, pandas 3.0, …).
+A CUDA GPU is used when available (`--device cuda`).
+
+# Layout
+
+- `fedseismic/` — the current package: `config.py` (`RunConfig`),
+  `experiment.py` (training entry point), `federated/` (server + client
+  trainers), `models/` (CNNs, UNet), `data/` (MedMNIST/CIFAR/seismic
+  loaders + partitions), `privacy/` (honest-but-curious attackers),
+  `eval/` (metrics).
+- `configs/` — single-run configs; `configs/sweeps/` — grid specs.
+- `tests/` — 77 unit tests (`python -m unittest discover -s tests`).
+- `results/` — run artifacts (gitignored, regenerated locally).
+- `main.py`, `algorithms/`, `train_tools/` — the earlier training
+  framework (see "Legacy framework" below).
+
+# Reproducing the privacy grids
+
+Single run, then the attack suite on it:
+
+```
+python -m fedseismic.cli run --config configs/fedkper_bloodmnist.json --output-dir results/demo --device cuda
+python -m fedseismic.cli attack --run-dir results/demo
+```
+
+Full grids (training + attacks + tables + figures):
+
+```
+python -m fedseismic.cli sweep --config configs/sweeps/balanced_blood.json --device cuda --skip-attack
+python -m fedseismic.privacy.howmuch --extra results/runs/balanced_blood --output results/tables/balanced_howmuch.csv
+python -m fedseismic.privacy.sum_channel --roots results/runs/sums_blood results/runs/sums_blood_fedlc --output results/tables/sums_blood_a01.csv --alphas 0.1
+python -m fedseismic.privacy.sum_channel --roots results/runs/sums_blood --output results/tables/sums_blood_a01.csv --figure
+python -m fedseismic.privacy.fingerprint --roots results/runs/fingerprint_blood results/runs/fingerprint_blood_fedlc --output results/tables/fingerprint_blood.csv
+```
+
+Key grids: `balanced_{blood,organc,cifar}.json` (balanced gradients),
+`sums_blood{,_fedlc}.json` (few-silo encrypted sums, N=2/3/5/8),
+`fingerprint_blood{,_fedlc}.json` (cohort recovery, 10 clients 3/round),
+`prior_smooth_{blood,organc,cifar}.json` (FedLC→FedAvg λ curve),
+`seismic_f3.json` (F3 UNet, FedAvg/FedBN × batch/group norm).
+Observers are always explicit: server-individual, server-sum, peer-sum.
+Method-aware shadows (victim's exact trainer from a saved received model)
+are cached under `results/attacks/shadows/`.
+
+# Overview (legacy framework)
+
+# Install Environment (legacy framework)
 You will first need to create a conda environment to run experiments. You can install the basic libraries needed as follows:
 
 ```
@@ -10,7 +72,7 @@ conda create --name <env_name> --file requirements.txt
 
 If another library is needed that is not yet installed, you can do so by using ```pip```.
 
-# Example Setups
+# Example Setups (legacy framework)
 Federated learning is an iterative process. It takes place across multiple communication rounds. At each round, we sample a certain percentage of all clients.
 We are easily able to set these parameters using this codebase.
 For instance, say we want to run the ```FedAvg``` algorithm. We can set up a bash script to contain this line:
