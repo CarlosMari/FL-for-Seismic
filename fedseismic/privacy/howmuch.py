@@ -154,12 +154,46 @@ def _dataset_targets(cfg):
     return targets
 
 
+class _FloorLine:
+    """Counts = shadow per-class mean + shrunk linear residual.
+
+    A plain least-squares line can extrapolate far beyond the shadow range
+    and score far below the floor (R² < 0) on real clients. That is a
+    mis-calibrated attacker, not evidence of privacy: the attacker could
+    always fall back to predicting the floor. This fit standardizes the
+    single-channel scores on the shadows and fits the residual over the
+    per-class mean with a cross-validated ridge penalty. With no signal the
+    penalty drives the slope to zero and the prediction to the floor
+    (R² = 0 against the per-class-mean baseline by construction).
+    """
+
+    def __init__(self, mean, scaler, model):
+        self.mean = np.asarray(mean, dtype=np.float64).reshape(-1)
+        self.scaler = scaler
+        self.model = model
+
+    def predict(self, scores):
+        flat = np.asarray(scores, dtype=np.float64).reshape(-1, 1)
+        residual = np.asarray(self.model.predict(self.scaler.transform(flat))).reshape(-1)
+        tiled = np.broadcast_to(self.mean, (len(residual) // len(self.mean), len(self.mean)))
+        return (tiled.reshape(-1) + residual).reshape(np.asarray(scores).shape)
+
+
 def _fit_line(scores, counts):
-    model = LinearRegression()
+    """Floor-plus-shrunk-residual line from a channel score to a count.
+
+    Pooled over classes: one slope maps the (standardized) score to the
+    residual over the shadow per-class mean. Replaces the plain
+    least-squares fit, which could extrapolate below the floor.
+    """
     flat_x = np.asarray(scores, dtype=np.float64).reshape(-1, 1)
-    flat_y = np.asarray(counts, dtype=np.float64).reshape(-1)
-    model.fit(flat_x, flat_y)
-    return model
+    matrix = np.asarray(counts, dtype=np.float64)
+    mean = matrix.mean(axis=0)
+    residual = (matrix - mean).reshape(-1)
+    scaler = StandardScaler()
+    model = RidgeCV(alphas=np.logspace(-6, 3, 19))
+    model.fit(scaler.fit_transform(flat_x), residual)
+    return _FloorLine(mean, scaler, model)
 
 
 def _apply_line(model, scores):
@@ -200,6 +234,24 @@ def _fit_ridge(features, target):
     model = RidgeCV(alphas=np.logspace(-3, 3, 13))
     model.fit(transformed, np.asarray(target, dtype=np.float64))
     return scaler, model
+
+
+def _fit_floor_ridge(features, target):
+    """Mean + shrunk ridge residual, so a no-signal size fit lands on the
+    mean size (R² = 0) instead of below it. Same floor-fallback argument as
+    ``_FloorLine``."""
+    target = np.asarray(target, dtype=np.float64).reshape(-1)
+    mean = float(target.mean())
+    scaler = StandardScaler()
+    model = RidgeCV(alphas=np.logspace(-6, 3, 19))
+    model.fit(scaler.fit_transform(np.asarray(features, dtype=np.float64)), target - mean)
+    return mean, scaler, model
+
+
+def _apply_floor_ridge(fit, features):
+    mean, scaler, model = fit
+    residual = np.asarray(model.predict(scaler.transform(np.asarray(features, dtype=np.float64)))).reshape(-1)
+    return mean + residual
 
 
 def _apply_ridge(scaler, model, features):
@@ -251,8 +303,8 @@ def _vector_support(models, features):
 def _channel_predictions(shadow_scores, shadow_counts, real_scores):
     line = _fit_line(shadow_scores, shadow_counts)
     counts_hat = _apply_line(line, real_scores)
-    size_model = _fit_ridge(np.asarray(shadow_scores, dtype=np.float64), shadow_counts.sum(axis=1))
-    sizes_hat = _apply_ridge(size_model[0], size_model[1], np.asarray(real_scores, dtype=np.float64))
+    size_fit = _fit_floor_ridge(np.asarray(shadow_scores, dtype=np.float64), shadow_counts.sum(axis=1))
+    sizes_hat = _apply_floor_ridge(size_fit, np.asarray(real_scores, dtype=np.float64))
     presence = _fit_presence(shadow_scores, shadow_counts)
     support_hat = _presence_from_line(presence, real_scores)
     return counts_hat, np.asarray(sizes_hat, dtype=np.float64).reshape(-1), support_hat
@@ -287,6 +339,24 @@ def _rows_from_predictions(clients, pis, counts, counts_hat, sizes_hat, support_
     return rows
 
 
+def _counts_spearman(counts, pred):
+    """Pooled Spearman rank correlation of predicted vs true counts.
+
+    Calibration-free: a shrunk or shifted attacker still scores here if it
+    ranks client-class pairs correctly. Reported alongside counts R² so a
+    floor-level R² with positive Spearman reads as weak-but-real signal,
+    not as no signal.
+    """
+    from scipy.stats import spearmanr
+
+    left = np.concatenate([np.asarray(row, dtype=np.float64).reshape(-1) for row in counts])
+    right = np.concatenate([np.asarray(row, dtype=np.float64).reshape(-1) for row in pred])
+    if np.std(right) < 1e-12:
+        return float("nan")
+    coef = spearmanr(left, right).statistic
+    return float(coef) if np.isfinite(coef) else float("nan")
+
+
 def _metric_bundle(rows):
     from fedseismic.privacy.distribution import histogram_r2
     from fedseismic.privacy.mechanism import prior_presence_auc
@@ -308,6 +378,9 @@ def _metric_bundle(rows):
         floor_values.extend(np.asarray(population, dtype=np.float64).tolist())
     return {
         "counts_r2": counts_r2(counts, pred),
+        "counts_spearman": _counts_spearman(counts, pred),
+        "counts_spearman_floor": _counts_spearman(
+            counts, [np.mean(np.stack(counts), axis=0) for _ in counts]),
         "size_r2": size_r2(counts, [row["pred_size"] for row in rows]),
         "prop_oracle_r2": proportions_r2(pis, [row["oracle"] for row in rows]),
         "prop_estimated_r2": proportions_r2(pis, [row["estimated"] for row in rows]),
@@ -465,7 +538,7 @@ def summarize(grouped, n_draws=1000):
     from fedseismic.privacy.mechanism import DISPLAY
 
     headlines = (
-        "counts_r2", "size_r2", "prop_oracle_r2", "prop_estimated_r2",
+        "counts_r2", "counts_spearman", "size_r2", "prop_oracle_r2", "prop_estimated_r2",
         "support_auc", "support_leakage", "support_tpr", "mix_r2",
     )
     zero_floor = {"counts_r2", "size_r2", "prop_oracle_r2", "prop_estimated_r2", "mix_r2"}
@@ -477,7 +550,10 @@ def summarize(grouped, n_draws=1000):
         bundled = _bootstrap_bundle(grouped[key], n_draws, rng)
         for metric in headlines:
             point, low, high = bundled[metric]
-            if metric in zero_floor:
+            if metric == "counts_spearman":
+                floor = bundled["counts_spearman_floor"][0]
+                leakage, leakage_low, leakage_high = point - floor, low - floor, high - floor
+            elif metric in zero_floor:
                 floor = 0.0
                 leakage, leakage_low, leakage_high = point, low, high
             elif metric == "support_auc":
@@ -684,7 +760,7 @@ def main():
                 estimated=np.stack([row["estimated"] for row in rows]),
             )
     table = summarize(grouped)
-    count_metrics = {"counts_r2", "size_r2", "prop_oracle_r2", "prop_estimated_r2", "mix_r2"}
+    count_metrics = {"counts_r2", "counts_spearman", "size_r2", "prop_oracle_r2", "prop_estimated_r2", "mix_r2"}
     support_metrics = {"support_auc", "support_leakage", "support_tpr"}
     passed = fedavg_ok(table, "ridge", "counts_r2", 0.2) and fedavg_ok(table, "ridge", "support_auc", 0.0)
     for row in table:
@@ -875,7 +951,7 @@ def score_saved_runs(roots, n_draws=1000, output=None):
                 oracle=np.stack([row["oracle"] for row in rows]),
                 estimated=np.stack([row["estimated"] for row in rows]),
             )
-    headlines = ("counts_r2", "size_r2", "support_auc", "support_leakage", "support_tpr",
+    headlines = ("counts_r2", "counts_spearman", "size_r2", "support_auc", "support_leakage", "support_tpr",
                  "prop_oracle_r2", "prop_estimated_r2")
     rng = np.random.RandomState(0)
     table = []
@@ -884,7 +960,9 @@ def score_saved_runs(roots, n_draws=1000, output=None):
         bundled = _bootstrap_bundle(grouped[(dataset, method, attacker)], n_draws, rng)
         for metric in headlines:
             point, low, high = bundled[metric]
-            if metric == "support_auc":
+            if metric == "counts_spearman":
+                floor = bundled["counts_spearman_floor"][0]
+            elif metric == "support_auc":
                 floor = bundled["support_floor"][0]
             elif metric == "support_tpr":
                 floor = bundled["support_tpr_floor"][0]
@@ -907,7 +985,7 @@ def score_saved_runs(roots, n_draws=1000, output=None):
                 "high": high,
                 "floor": floor,
             })
-            if attacker in {"row", "decaf", "bias"} and metric in {"counts_r2", "support_auc", "support_tpr", "prop_estimated_r2"}:
+            if attacker in {"row", "decaf", "bias"} and metric in {"counts_r2", "counts_spearman", "support_auc", "support_tpr", "prop_estimated_r2"}:
                 print(f"  {method} {attacker} {metric} {point:.3f} [{low:.3f}, {high:.3f}]", flush=True)
     frame = pd.DataFrame(table)
     path = Path(output or "results/tables/fedkper_howmuch.csv")

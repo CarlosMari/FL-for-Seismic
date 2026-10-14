@@ -28,6 +28,7 @@ from pathlib import Path
 import json
 
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
 from fedseismic.privacy.decaf import positive_sum
 from fedseismic.privacy.head_channels import _client_id
@@ -114,7 +115,7 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
     with a different ``start_round_max`` is rejected as stale.
     """
     from fedseismic.config import RunConfig
-    from fedseismic.privacy.howmuch import _dataset_targets
+    from fedseismic.privacy.howmuch import _counts_spearman, _dataset_targets
     from fedseismic.privacy.share_sweep import _cache_path
 
     run_dir = Path(run_dir)
@@ -123,16 +124,6 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
     seed = int(meta.get("seed", cfg.seed))
     histograms, _ = load_labels(run_dir)
     norms, bias, decaf = participation_channels(run_dir, round_lo, round_hi)
-    from fedseismic.config import RunConfig
-    from fedseismic.privacy.howmuch import _dataset_targets
-    from fedseismic.privacy.share_sweep import _cache_path
-
-    run_dir = Path(run_dir)
-    meta = load_meta(run_dir)
-    cfg = RunConfig.from_mapping(meta["config"])
-    seed = int(meta.get("seed", cfg.seed))
-    histograms, _ = load_labels(run_dir)
-    norms, bias, decaf = participation_channels(run_dir)
     counts_by_client = real_counts(cfg, targets, seed)
     clients = sorted(client for client in bias if client in histograms and client < len(counts_by_client))
     counts = np.stack([counts_by_client[client] for client in clients])
@@ -168,6 +159,9 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
         "decaf": np.stack([decaf[client] for client in clients]),
     }
     out = {"n_members": len(clients), "seed": seed_dir_name(run_dir)}
+    pop_profile = counts.mean(axis=0)
+    out["spearman_floor"] = _counts_spearman(
+        counts, np.stack([pop_profile for _ in range(len(clients))]))
     for name in ("bias", "row", "decaf"):
         scores = shadow_channels[name]
         if scores is None:
@@ -179,10 +173,12 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
         # across the cohort's members, not the multi-seed table number.
         indiv_hat = _apply_line(line, real)
         out[f"individual_{name}_counts_r2"] = counts_r2(counts, indiv_hat)
+        out[f"individual_{name}_counts_spearman"] = _counts_spearman(counts, indiv_hat)
         # Server-sum: one mean vector; score every member against it, mean the R2.
         _, summed = cohort_sum({client: real[index] for index, client in enumerate(clients)})
         sum_hat = _apply_line(line, np.stack([summed for _ in clients]))
         out[f"sumsum_{name}_counts_r2"] = counts_r2(counts, sum_hat)
+        out[f"sumsum_{name}_counts_spearman"] = _counts_spearman(counts, sum_hat)
         # Presence from the sum: every member scored with the same summed vector.
         out[f"sumsum_{name}_presence_auc"] = _presence_auc(pis, [summed for _ in clients])
         # Peer-sum: member j subtracts its own update, residual estimates the
@@ -202,10 +198,10 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
             peer_truth.append(other_mean)
             peer_pred.append(pred.reshape(-1))
         out[f"peer_{name}_other_counts_r2"] = counts_r2(peer_truth, peer_pred)
+        out[f"peer_{name}_other_counts_spearman"] = _counts_spearman(peer_truth, peer_pred)
         # Peer presence: which classes do the OTHER members hold? Truth per
         # (member j, class k) is the union presence over members != j; the
         # score is the residual channel value. Pooled within the seed.
-        from sklearn.metrics import roc_auc_score
         union_labels = []
         union_scores = []
         for index in range(m):
@@ -286,7 +282,8 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
         dataset, job, n_members, alpha, algorithm, logit = key
         seeds = per_seed[key]
         method = "FedLC" if logit else ("FedPer" if algorithm == "fedper" else "FedAvg")
-        metrics = sorted({name for row in seeds for name in row if name not in {"n_members", "seed"}})
+        metrics = sorted({name for row in seeds for name in row if name not in {"n_members", "seed", "spearman_floor"}})
+        floor_point = _mean_finite(row["spearman_floor"] for row in seeds)
         for metric in metrics:
             values = [row[metric] for row in seeds]
             point = _mean_finite(values)
@@ -297,6 +294,11 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
             low, high = _percentile(draws)
             observer = OBSERVER_SUM if metric.startswith("sumsum_") else (
                 OBSERVER_PEER if metric.startswith("peer_") else "server-individual")
+            floor = float("nan")
+            if "spearman" in metric:
+                floor = floor_point
+            elif "counts_r2" in metric:
+                floor = 0.0
             table.append({
                 "dataset": DISPLAY.get(dataset, dataset),
                 "job": job,
@@ -308,6 +310,7 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
                 "estimate": point,
                 "low": low,
                 "high": high,
+                "floor": floor,
                 "n_seeds": len(values),
             })
             print(f"  N={n_members} a={alpha:g} {method} {observer} {metric} {point:.3f} [{low:.3f}, {high:.3f}]", flush=True)

@@ -5,7 +5,10 @@ import unittest
 import numpy as np
 
 from fedseismic.privacy.howmuch import (
+    _apply_line,
     _apply_pair,
+    _counts_spearman,
+    _fit_line,
     _fit_pair,
     best_count_row,
     channels_passing_counts,
@@ -99,6 +102,30 @@ class HowMuchTests(unittest.TestCase):
         predicted = _apply_pair(_scaler, model, row, bias)
         self.assertEqual(predicted.shape, counts.shape)
         self.assertGreater(counts_r2(counts, predicted), 0.95)
+
+    def test_line_falls_back_to_the_floor_without_signal(self):
+        # Converged shadows: tiny score variance, large count variance. Plain
+        # least squares fits a huge slope (Cov/tiny Var) that extrapolates
+        # wildly on real clients (-0.27 on this seed). The shrunk residual
+        # stays near the per-class-mean baseline instead (-0.18).
+        rng = np.random.RandomState(0)
+        shadow_scores = 0.01 * rng.normal(size=(48, 8))
+        shadow_counts = 500.0 + 100.0 * rng.normal(size=(48, 8))
+        line = _fit_line(shadow_scores, shadow_counts)
+        real_scores = 0.10 * rng.normal(size=(20, 8))
+        real_counts = 500.0 + 100.0 * rng.normal(size=(20, 8))
+        predicted = _apply_line(line, real_scores)
+        self.assertGreater(counts_r2(real_counts, predicted), -0.25)
+
+    def test_line_recovers_a_real_slope(self):
+        rng = np.random.RandomState(1)
+        shadow_scores = np.repeat((np.arange(48) * 10.0).reshape(-1, 1), 8, axis=1)
+        shadow_scores = shadow_scores + rng.normal(size=(48, 8))
+        shadow_counts = 2.0 * shadow_scores + 50.0
+        line = _fit_line(shadow_scores, shadow_counts)
+        predicted = _apply_line(line, shadow_scores[:4])
+        self.assertGreater(counts_r2(shadow_counts[:4], predicted), 0.9)
+        self.assertGreater(_counts_spearman(shadow_counts[:4], predicted), 0.9)
 
 
 if __name__ == "__main__":
