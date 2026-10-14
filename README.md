@@ -1,5 +1,7 @@
 # FL-for-Seismic: privacy–personalization boundary in federated learning
 
+> **Status:** basis of my MS thesis and a journal paper in preparation (both expected December 2026).
+
 This repo studies what a client's model updates reveal about its data
 composition in cross-silo federated learning: class counts ("how much"),
 which classes are present (support), and how personalization methods
