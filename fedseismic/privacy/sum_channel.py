@@ -34,14 +34,13 @@ from fedseismic.privacy.decaf import positive_sum
 from fedseismic.privacy.head_channels import _client_id
 from fedseismic.privacy.howmuch import (
     _apply_line,
+    _counts_spearman,
     _fit_line,
     counts_r2,
     real_counts,
     shadow_counts,
-    size_r2,
 )
-from fedseismic.privacy.log import _load_checkpoint, load_labels, load_meta
-from fedseismic.privacy.meta_attacker import training_pool
+from fedseismic.privacy.log import load_labels, load_meta
 from fedseismic.privacy.metrics import to_simplex
 from fedseismic.privacy.row_delta import _presence_auc
 
@@ -97,13 +96,6 @@ def cohort_sum(channels):
     encrypted sum: equal weights, full participation."""
     stacked = np.stack([np.asarray(channels[client], dtype=np.float64) for client in sorted(channels)])
     return float(len(channels)), np.mean(stacked, axis=0)
-
-
-def _shadow_channel_scores(cfg, targets, seed, n_shadows, channel):
-    """Shadow fits for one channel: line from score to count, plus shadow counts."""
-    from fedseismic.privacy.share_sweep import _load_shadows
-
-    raise NotImplementedError("use score_seed_sums, which loads cached shadows")
 
 
 def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=ROUND_HI):
@@ -351,7 +343,8 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
                 "floor": floor,
                 "n_seeds": len(values),
             })
-            print(f"  N={n_members} a={alpha:g} {method} {observer} {metric} {point:.3f} [{low:.3f}, {high:.3f}]", flush=True)
+            print(f"  N={n_members} a={alpha:g} {method} {observer} {metric} "
+                  f"{point:.3f} [{low:.3f}, {high:.3f}]", flush=True)
     frame = pd.DataFrame(table)
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -780,7 +780,9 @@ def main():
     plot_support_vs_counts(table, figure)
     print("FedAvg ridge control", "pass" if passed else "FAIL", flush=True)
     for row in table:
-        if row["attacker"] == "ridge" and row["metric"] in {"counts_r2", "support_auc", "size_r2"} and row["method"] in {"FedAvg", "FedLC"}:
+        if (row["attacker"] == "ridge"
+                and row["metric"] in {"counts_r2", "support_auc", "size_r2"}
+                and row["method"] in {"FedAvg", "FedLC"}):
             print(
                 f"  {row['dataset']} {row['method']} {row['metric']} "
                 f"{row['estimate']:.3f} [{row['low']:.3f}, {row['high']:.3f}]",
@@ -987,7 +989,9 @@ def score_saved_runs(roots, n_draws=1000, output=None):
                 "high": high,
                 "floor": floor,
             })
-            if attacker in {"row", "decaf", "bias"} and metric in {"counts_r2", "counts_spearman", "support_auc", "support_tpr", "prop_estimated_r2"}:
+            if (attacker in {"row", "decaf", "bias"} and metric in {
+                    "counts_r2", "counts_spearman", "support_auc", "support_tpr",
+                    "prop_estimated_r2"}):
                 print(f"  {method} {attacker} {metric} {point:.3f} [{low:.3f}, {high:.3f}]", flush=True)
     frame = pd.DataFrame(table)
     path = Path(output or "results/tables/fedkper_howmuch.csv")

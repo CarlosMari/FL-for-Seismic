@@ -19,29 +19,17 @@ Method comparison (FedAvg vs FedLC) uses the same channels both sides.
 """
 
 from pathlib import Path
-import json
 
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
 from fedseismic.privacy.decaf import positive_sum
 from fedseismic.privacy.head_channels import _client_id
-from fedseismic.privacy.log import load_labels, load_meta
-from fedseismic.privacy.metrics import to_simplex
+from fedseismic.privacy.log import load_meta
 
-ABSENT = 1e-3
 OBSERVER = "peer-sum"
 ROUND_LO = 1
 ROUND_HI = 10
-
-
-def round_cohorts(run_dir):
-    """Member list per round from the saved per-participation head deltas."""
-    cohorts = {}
-    for path in sorted((Path(run_dir) / "head").glob("round_*_client_*.npz")):
-        round_index = int(path.stem.split("_")[1])
-        cohorts.setdefault(round_index, []).append(_client_id(path))
-    return {round_index: sorted(members) for round_index, members in sorted(cohorts.items())}
 
 
 def round_residuals(run_dir, round_lo=ROUND_LO, round_hi=ROUND_HI):
