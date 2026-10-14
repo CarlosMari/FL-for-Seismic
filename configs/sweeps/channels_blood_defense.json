@@ -1,0 +1,17 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/runs/channels_blood_defense",
+  "num_rounds": 40,
+  "seeds": [0, 1, 42],
+  "algorithms": ["defense"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "oracle_reference": false,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true,
+  "public_pad_per_class": 8,
+  "logit_adjust": true,
+  "class_reweight": true,
+  "train_public_pad": true
+}

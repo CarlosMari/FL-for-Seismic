@@ -14,10 +14,11 @@
   "seed": 42,
   "algorithm": "fedkper",
   "agg_strategy": "fedkper",
+  "fedkper_diversity": "infer",
   "optimizer": "sgd",
   "momentum": 0.9,
   "local_test_ratio": 0.2,
   "lambda_cap": 10.0,
   "grad_clip": 5.0,
-  "device": "mps"
+  "device": "cpu"
 }

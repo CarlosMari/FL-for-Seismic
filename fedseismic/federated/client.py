@@ -11,11 +11,21 @@ def _logits(output):
     return output[0] if isinstance(output, (tuple, list)) else output
 
 
+def _with_log_prior(logits, log_prior):
+    if log_prior is None:
+        return logits
+    if logits.ndim == 4:
+        return logits + log_prior.view(1, -1, 1, 1)
+    return logits + log_prior.view(1, -1)
+
+
 class ClientTrainer:
     """Download global weights, train locally, upload weights, then reset."""
 
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
-                 lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9):
+                 lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9,
+                 num_classes=None, logit_adjust=False, prior_smooth=0.0,
+                 class_reweight=False, public_loader=None):
         self.model = model
         self.loader = loader
         self.criterion = criterion
@@ -25,6 +35,11 @@ class ClientTrainer:
         self.weight_decay = weight_decay
         self.optimizer_name = str(optimizer).strip().lower()
         self.momentum = momentum
+        self.num_classes = num_classes
+        self.logit_adjust = bool(logit_adjust)
+        self.prior_smooth = float(prior_smooth)
+        self.class_reweight = bool(class_reweight)
+        self.public_loader = public_loader
         self.optimizer = None
 
     def _make_optimizer(self):
@@ -44,18 +59,62 @@ class ClientTrainer:
         self.model.to(self.device)
         return self
 
+    def _log_prior(self):
+        if not self.logit_adjust or not self.num_classes:
+            return None
+        pi = class_frequency(self.loader, self.num_classes)
+        smooth = self.prior_smooth
+        if smooth:
+            pi = (1.0 - smooth) * pi + smooth / float(self.num_classes)
+        return torch.as_tensor(
+            np.log(np.clip(pi, 1e-8, None)), device=self.device, dtype=torch.float,
+        )
+
+    def _class_counts(self, loader):
+        if loader is None or not self.num_classes:
+            return np.zeros(self.num_classes or 0, dtype=np.float64)
+        labels = _dataset_labels(getattr(loader, "dataset", None))
+        if labels is None:
+            return class_frequency(loader, self.num_classes) * max(len(loader.dataset), 1)
+        return np.bincount(np.asarray(labels).astype(int), minlength=self.num_classes).astype(np.float64)
+
+    def _loss_weight(self):
+        """Inverse-frequency weights over the examples this client actually trains on."""
+        if not self.class_reweight or not self.num_classes:
+            return None
+        counts = self._class_counts(self.loader)
+        if self.public_loader is not None:
+            counts = counts + self._class_counts(self.public_loader)
+        present = counts > 0
+        weights = np.zeros(self.num_classes, dtype=np.float64)
+        if present.any():
+            weights[present] = counts[present].sum() / (float(present.sum()) * counts[present])
+        return torch.as_tensor(weights, device=self.device, dtype=torch.float)
+
+    def _train_loaders(self):
+        yield self.loader
+        if self.public_loader is not None:
+            yield self.public_loader
+
     def train(self, global_state=None):
         self.model.train()
         self.model.to(self.device)
         self.optimizer = self._make_optimizer()
+        log_prior = self._log_prior()
+        weight = self._loss_weight()
         for _ in range(self.local_epochs):
-            for images, targets, _ in self.loader:
-                images = images.to(self.device, dtype=torch.float)
-                targets = targets.to(self.device, dtype=torch.long)
-                loss = self.criterion(_logits(self.model(images)), targets)
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+            for loader in self._train_loaders():
+                for images, targets, _ in loader:
+                    images = images.to(self.device, dtype=torch.float)
+                    targets = targets.to(self.device, dtype=torch.long)
+                    logits = _with_log_prior(_logits(self.model(images)), log_prior)
+                    if weight is None:
+                        loss = self.criterion(logits, targets)
+                    else:
+                        loss = F.cross_entropy(logits, targets, weight=weight)
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
         return self
 
     def upload(self):
@@ -65,6 +124,152 @@ class ClientTrainer:
         self.optimizer = None
         self.model.zero_grad(set_to_none=True)
         return self
+
+
+class StepClientTrainer(ClientTrainer):
+    """A fixed number of full-dataset steps, not epochs of minibatches.
+
+    ``example`` is the usual mean over examples, so a class contributes in
+    proportion to its count. ``class`` is the mean of the per-class mean
+    gradients, over the classes this client holds. The class prior is not
+    added in the loss. The server adds it at local evaluation when asked.
+    """
+
+    def __init__(self, *args, local_steps=1, gradient_balance="example", **kwargs):
+        super().__init__(*args, **kwargs)
+        if int(local_steps) < 1:
+            raise ValueError("local_steps must be positive")
+        if gradient_balance not in {"example", "class", "class_minibatch"}:
+            raise ValueError("gradient_balance must be 'example', 'class', or 'class_minibatch'")
+        self.local_steps = int(local_steps)
+        self.gradient_balance = gradient_balance
+
+    def train(self, global_state=None):
+        self.model.train()
+        self.model.to(self.device)
+        self.optimizer = self._make_optimizer()
+        for _ in range(self.local_steps):
+            if self.gradient_balance == "class":
+                self._class_step()
+            else:
+                self._example_step()
+        return self
+
+    def _example_step(self):
+        seen = self._mean_backward(None)
+        if seen:
+            self.optimizer.step()
+
+    def _class_step(self):
+        present = np.flatnonzero(self._class_counts(self.loader) > 0)
+        if len(present) == 0:
+            return
+        accumulated = None
+        for class_index in present:
+            seen = self._mean_backward(int(class_index))
+            if not seen:
+                continue
+            grads = [parameter.grad.detach().clone() for parameter in self.model.parameters()]
+            if accumulated is None:
+                accumulated = grads
+            else:
+                accumulated = [left + right for left, right in zip(accumulated, grads)]
+        if accumulated is None:
+            return
+        scale = 1.0 / float(len(present))
+        for parameter, grad in zip(self.model.parameters(), accumulated):
+            parameter.grad = grad * scale
+        self.optimizer.step()
+
+    def _mean_backward(self, class_index):
+        """Mean gradient of one class, or of every example when ``class_index`` is None."""
+        self.optimizer.zero_grad(set_to_none=True)
+        seen = 0
+        for images, targets, _ in self.loader:
+            if class_index is not None:
+                mask = targets == class_index
+                if not bool(mask.any()):
+                    continue
+                images = images[mask]
+                targets = targets[mask]
+            images = images.to(self.device, dtype=torch.float)
+            targets = targets.to(self.device, dtype=torch.long)
+            loss = F.cross_entropy(_logits(self.model(images)), targets, reduction="sum")
+            loss.backward()
+            seen += int(targets.shape[0])
+        if seen:
+            for parameter in self.model.parameters():
+                if parameter.grad is not None:
+                    parameter.grad.div_(seen)
+        return seen
+
+
+class MinibatchBalancedTrainer(ClientTrainer):
+    """Five (or ``local_epochs``) epochs of class-balanced minibatches.
+
+    Each batch holds equal shares of every class the client has, cycling
+    small classes, covering the largest class once per epoch. The class
+    prior is NOT added in the loss; the server adds log π at local
+    evaluation when ``infer_log_prior`` is set. This is the realistic
+    version of the full-batch ``class`` step: repeated examples, minibatch
+    noise, and the same per-round compute as ordinary minibatch training.
+    """
+
+    def train(self, global_state=None):
+        self.model.train()
+        self.model.to(self.device)
+        self.optimizer = self._make_optimizer()
+        batches = self._balanced_batches()
+        for _ in range(max(int(self.local_epochs), 1)):
+            for images, targets in batches:
+                images = images.to(self.device, dtype=torch.float)
+                targets = targets.to(self.device, dtype=torch.long)
+                loss = F.cross_entropy(_logits(self.model(images)), targets)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+            batches = self._balanced_batches()
+        return self
+
+    def _balanced_batches(self):
+        dataset = getattr(self.loader, "dataset", None)
+        if dataset is None:
+            raise ValueError("balanced minibatches need a dataset loader")
+        labels = _dataset_labels(dataset)
+        if labels is None:
+            raise ValueError("balanced minibatches need dataset labels")
+        labels = np.asarray(labels).reshape(-1)
+        by_class = {}
+        for position in range(len(dataset)):
+            by_class.setdefault(int(labels[position]), []).append(position)
+        present = sorted(by_class)
+        if not present:
+            return []
+        per_class = max(len(by_class[class_index]) for class_index in present)
+        streams = {}
+        for class_index in present:
+            pool = list(by_class[class_index])
+            order = list(np.random.permutation(pool))
+            while len(order) < per_class:
+                order.extend(np.random.permutation(pool).tolist())
+            streams[class_index] = order[:per_class]
+        loader_batch = int(getattr(self.loader, "batch_size", 0) or 32)
+        quota = max(loader_batch // len(present), 1)
+        batches = []
+        for start in range(0, per_class, quota):
+            images, targets = [], []
+            for class_index in present:
+                for position in streams[class_index][start:start + quota]:
+                    image, target, _ = dataset[position]
+                    images.append(image)
+                    targets.append(int(target))
+                    if len(images) >= loader_batch:
+                        break
+                if len(images) >= loader_batch:
+                    break
+            if images:
+                batches.append((torch.stack(images), torch.as_tensor(targets, dtype=torch.long)))
+        return batches
 
 
 class FedProxClientTrainer(ClientTrainer):
@@ -95,6 +300,58 @@ class FedProxClientTrainer(ClientTrainer):
                 loss.backward()
                 self.optimizer.step()
         return self
+
+
+class DittoClientTrainer(ClientTrainer):
+    """Personalized model stays on the client. The upload is plain local SGD.
+
+    Li et al., ICLR 2021. The personal weights minimize cross-entropy plus a
+    penalty toward the current global model, and they are never uploaded.
+    """
+
+    def __init__(self, *args, ditto_lambda=1.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ditto_lambda = ditto_lambda
+        self.personal_state = None
+        self._upload_state = None
+
+    def train(self, global_state=None):
+        if global_state is None:
+            global_state = deepcopy(self.model.state_dict())
+        self.download(global_state)
+        super().train(global_state=global_state)
+        self._upload_state = deepcopy(self.model.state_dict())
+
+        if self.personal_state is None:
+            self.download(global_state)
+        else:
+            self.download(self.personal_state)
+        global_params = [
+            global_state[name].detach().to(self.device)
+            for name, _ in self.model.named_parameters()
+        ]
+        self.model.train()
+        self.optimizer = self._make_optimizer()
+        for _ in range(self.local_epochs):
+            for images, targets, _ in self.loader:
+                images = images.to(self.device, dtype=torch.float)
+                targets = targets.to(self.device, dtype=torch.long)
+                loss = self.criterion(_logits(self.model(images)), targets)
+                proximal = torch.zeros((), device=self.device)
+                for parameter, global_parameter in zip(self.model.parameters(), global_params):
+                    proximal = proximal + (parameter - global_parameter).norm(2) ** 2
+                loss = loss + (self.ditto_lambda / 2.0) * proximal
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+        self.personal_state = deepcopy(self.model.state_dict())
+        self.download(self._upload_state)
+        return self
+
+    def upload(self):
+        if self._upload_state is None:
+            return super().upload()
+        return deepcopy(self._upload_state)
 
 
 class FedBNClientTrainer(ClientTrainer):
@@ -202,19 +459,29 @@ class FedVLSClientTrainer(ClientTrainer):
 
 def class_frequency(loader, num_classes):
     dataset = getattr(loader, "dataset", None)
-    if dataset is not None and hasattr(dataset, "label") and hasattr(dataset, "indices"):
-        labels = dataset.label[:, dataset.indices, :].reshape(-1)
+    labels = _dataset_labels(dataset)
+    if labels is not None:
         values, counts = np.unique(labels, return_counts=True)
-        frequencies = np.zeros(num_classes, dtype=np.float32)
-        total = counts.sum()
+        frequencies = np.zeros(num_classes, dtype=np.float64)
+        total = max(int(counts.sum()), 1)
         for value, count in zip(values, counts):
             frequencies[int(value)] = count / total
         return frequencies
     counts = np.zeros(num_classes, dtype=np.float64)
     for _, targets, _ in loader:
-        values, value_counts = np.unique(targets.numpy(), return_counts=True)
+        values, value_counts = np.unique(np.asarray(targets), return_counts=True)
         counts[values.astype(int)] += value_counts
     return counts / max(counts.sum(), 1.0)
+
+
+def _dataset_labels(dataset):
+    if dataset is None:
+        return None
+    if hasattr(dataset, "label") and hasattr(dataset, "indices"):
+        return np.asarray(dataset.label)[:, dataset.indices, :].reshape(-1)
+    if hasattr(dataset, "targets") and hasattr(dataset, "indices"):
+        return np.asarray(dataset.targets)[list(dataset.indices)].reshape(-1)
+    return None
 
 
 class FeatureExtractor:

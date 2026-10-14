@@ -31,15 +31,54 @@ def partition_iid(num_crosslines, num_clients, rng):
     return partitions
 
 
-def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
+def holdout_balanced_pad(targets, per_class, rng):
+    """A balanced public pad, leaving at least one image of each class to clients.
+
+    Indices are into ``targets``. The same seed must be used for every method
+    that shares a comparison, so the client split does not move.
+    """
+    targets = np.asarray(targets).reshape(-1)
+    if per_class < 1 or len(targets) == 0:
+        return []
+    chosen = []
+    for class_index in range(int(targets.max()) + 1):
+        pool = np.flatnonzero(targets == class_index)
+        take = min(int(per_class), max(len(pool) - 1, 0))
+        if take < 1:
+            continue
+        picked = rng.choice(pool, size=take, replace=False)
+        chosen.extend(int(index) for index in np.asarray(picked).reshape(-1))
+    return sorted(chosen)
+
+
+def drop_indices(targets, held_out):
+    """Return ``(kept_targets, kept_positions)`` with ``held_out`` removed."""
+    keep = np.ones(len(targets), dtype=bool)
+    if held_out:
+        keep[np.asarray(held_out, dtype=int)] = False
+    kept = np.flatnonzero(keep)
+    return np.asarray(targets).reshape(-1)[kept], kept
+
+
+def remap_partitions(parts, kept):
+    """Map partition indices from a dropped-index target array back to the original."""
+    return [[int(kept[index]) for index in part] for part in parts]
+
+
+def split_client_local_test(partitions, local_test_ratio=0.2, rng=None, buffer=0):
     """Hold out part of each client's own indices.
 
     With ``rng is None`` (seismic), take the contiguous tail of the sorted
     chunk. With an RNG (CIFAR), draw a random subset so the holdout is not
-    an artifact of image index order.
+    an artifact of image index order. ``buffer`` (seismic only) drops that
+    many crosslines between train and test so a spatially adjacent holdout
+    does not inflate local scores by interpolating local geology. Zero by
+    default, which reproduces the legacy splits exactly.
     """
     if not 0 <= local_test_ratio < 1:
         raise ValueError("local_test_ratio must be in [0, 1)")
+    if int(buffer) < 0:
+        raise ValueError("buffer must be non-negative")
     train_partitions = []
     test_partitions = []
     for idxs in partitions:
@@ -52,6 +91,11 @@ def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
         n_test = min(n_test, len(ordered) - 1)
         if rng is None:
             test_idxs = ordered[-n_test:]
+            if buffer:
+                cutoff = max(len(ordered) - n_test - int(buffer), 1)
+                train_partitions.append(ordered[:cutoff])
+                test_partitions.append(test_idxs)
+                continue
         else:
             chosen = rng.choice(len(ordered), size=n_test, replace=False)
             test_idxs = sorted(ordered[int(i)] for i in chosen)

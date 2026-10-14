@@ -14,14 +14,17 @@ class FedAvgNetCIFAR(nn.Module):
         self.classifier = nn.Linear(512, num_classes)
         self.relu = nn.ReLU()
 
-    def forward(self, x):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv2d_1(x))
         x = self.max_pooling(x)
         x = self.relu(self.conv2d_2(x))
         x = self.max_pooling(x)
         x = self.flatten(x)
-        x = self.relu(self.linear_1(x))
-        return self.classifier(x)
+        features = self.relu(self.linear_1(x))
+        logits = self.classifier(features)
+        if get_features:
+            return logits, features
+        return logits
 
 
 class MedMNISTNet(nn.Module):

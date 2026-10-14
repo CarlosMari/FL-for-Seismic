@@ -64,6 +64,9 @@ class RunConfig:
     split: str = "noniid"
     num_rounds: int = 20
     local_epochs: int = 3
+    local_steps: int | None = None
+    gradient_balance: str = "example"
+    infer_log_prior: bool = False
     batch_size: int = 4
     lr: float = 1e-3
     weight_decay: float = 1e-4
@@ -84,7 +87,24 @@ class RunConfig:
     proto_layer: str = "up4"
     lambda_cap: float = 10.0
     grad_clip: float = 5.0
+    fedkper_diversity: str = "infer"
     local_test_ratio: float = 0.2
+    spatial_holdout_buffer: int = 0
+    privacy_delta_dim: int | None = 4096
+    privacy_probe_batches: int | None = 8
+    privacy_log_last_only: bool = False
+    privacy_save_local: bool = True
+    privacy_save_received: bool = False
+    privacy_round_batches: int | None = None
+    ditto_lambda: float = 1.0
+    logit_adjust: bool = False
+    prior_smooth: float = 0.0
+    class_reweight: bool = False
+    public_pad_per_class: int = 0
+    train_public_pad: bool = False
+    presence_rehearsal: bool = False
+    dp_clip_norm: float = 5.0
+    dp_noise_multiplier: float = 1.0
     norm: str = "batch"
     norm_groups: int = 8
     checkpoint_policy: CheckpointPolicy = CheckpointPolicy.FINAL
@@ -114,13 +134,29 @@ class RunConfig:
             raise ValueError("split must be 'iid' or 'noniid'")
         if self.num_clients < 1 or self.num_rounds < 1 or self.local_epochs < 1:
             raise ValueError("num_clients, num_rounds, and local_epochs must be positive")
+        if self.local_steps is not None and int(self.local_steps) < 1:
+            raise ValueError("local_steps must be positive")
+        self.gradient_balance = str(self.gradient_balance).strip().lower()
+        if self.gradient_balance not in {"example", "class", "class_minibatch"}:
+            raise ValueError("gradient_balance must be 'example', 'class', or 'class_minibatch'")
         if not 0 < self.sample_ratio <= 1:
             raise ValueError("sample_ratio must be in (0, 1]")
         if not 0 <= self.local_test_ratio < 1:
             raise ValueError("local_test_ratio must be in [0, 1)")
+        if int(self.spatial_holdout_buffer) < 0:
+            raise ValueError("spatial_holdout_buffer must be non-negative")
         self.optimizer = str(self.optimizer).strip().lower()
         if self.optimizer not in {"adamw", "sgd"}:
             raise ValueError("optimizer must be 'adamw' or 'sgd'")
+        self.fedkper_diversity = str(self.fedkper_diversity).strip().lower()
+        if self.fedkper_diversity not in {"oracle", "upload", "infer"}:
+            raise ValueError("fedkper_diversity must be 'oracle', 'upload', or 'infer'")
+        if self.privacy_delta_dim is not None and self.privacy_delta_dim < 1:
+            raise ValueError("privacy_delta_dim must be positive or null")
+        if self.public_pad_per_class < 0:
+            raise ValueError("public_pad_per_class must be non-negative")
+        if not 0.0 <= float(self.prior_smooth) <= 1.0:
+            raise ValueError("prior_smooth must be in [0, 1]")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",
@@ -138,3 +174,13 @@ class RunConfig:
     def from_json(cls, path: str | Path) -> "RunConfig":
         with Path(path).open(encoding="utf-8") as handle:
             return cls.from_mapping(json.load(handle))
+
+    def to_dict(self) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        payload = asdict(self)
+        payload["checkpoint_policy"] = self.checkpoint_policy.value
+        payload["rare_classes"] = list(self.rare_classes)
+        extra = payload.pop("extra", {}) or {}
+        payload.update(extra)
+        return payload

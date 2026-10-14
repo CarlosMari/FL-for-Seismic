@@ -11,6 +11,7 @@
   "seed": 42,
   "algorithm": "fedkper",
   "agg_strategy": "fedkper",
+  "fedkper_diversity": "infer",
   "local_test_ratio": 0.2,
   "lambda_cap": 10.0,
   "grad_clip": 5.0,

@@ -1,0 +1,28 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/runs/privacy_dp_blood",
+  "num_rounds": 40,
+  "seeds": [
+    0,
+    1,
+    42
+  ],
+  "algorithms": [
+    "dpfedavg"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "dp_clip_norm": 5.0,
+  "dp_noise_multiplier": [
+    0.0,
+    0.001,
+    0.01
+  ],
+  "oracle_reference": false,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true
+}

@@ -1,0 +1,33 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/runs/prior_smooth_blood",
+  "num_rounds": 40,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    42
+  ],
+  "algorithms": [
+    "fedavg"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "oracle_reference": false,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true,
+  "privacy_save_received": true,
+  "logit_adjust": true,
+  "prior_smooth": [
+    0,
+    0.02,
+    0.1,
+    0.3,
+    1
+  ]
+}

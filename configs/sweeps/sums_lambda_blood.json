@@ -1,0 +1,17 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/runs/sums_lambda_blood",
+  "num_rounds": 40,
+  "seeds": [0, 1, 2, 3, 42, 10, 11, 12, 13, 14, 20, 21, 22, 23, 24, 30, 31, 32, 33, 34],
+  "algorithms": ["fedavg"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "num_clients_list": [3],
+  "oracle_reference": false,
+  "logit_adjust": true,
+  "prior_smooth": [0, 0.3, 1.0],
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": false,
+  "privacy_save_received": true
+}
