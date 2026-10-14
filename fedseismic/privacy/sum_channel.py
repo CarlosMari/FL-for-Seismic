@@ -174,6 +174,31 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
         indiv_hat = _apply_line(line, real)
         out[f"individual_{name}_counts_r2"] = counts_r2(counts, indiv_hat)
         out[f"individual_{name}_counts_spearman"] = _counts_spearman(counts, indiv_hat)
+        # Member-level support conditioned on the union (Q3 reframing): only
+        # classes present SOMEWHERE in the cohort count. Always-absent
+        # classes are free negatives; removing them isolates attribution
+        # (pinning k on member j) from mere union detection. Presence is
+        # judged on full-pi shares, restricted to union classes.
+        union_present = np.zeros(classes, dtype=bool)
+        for pi in pis:
+            union_present |= (to_simplex(pi) > ABSENT)
+        if union_present.sum() == 0:
+            out[f"individual_{name}_union_presence_auc"] = float("nan")
+        else:
+            cond_labels = []
+            cond_scores = []
+            for pi, vec in zip(pis, real):
+                present = (to_simplex(pi) > ABSENT).astype(int)[union_present]
+                cond_labels.extend(present.tolist())
+                cond_scores.extend(np.asarray(vec, dtype=np.float64)[union_present].tolist())
+            cond_labels = np.asarray(cond_labels)
+            # Degenerate only when member supports do not vary on union
+            # classes — not when the union itself is full (members differ).
+            if len(np.unique(cond_labels)) < 2:
+                out[f"individual_{name}_union_presence_auc"] = float("nan")
+            else:
+                out[f"individual_{name}_union_presence_auc"] = float(
+                    roc_auc_score(cond_labels, np.asarray(cond_scores)))
         # Server-sum: one mean vector; score every member against it, mean the R2.
         _, summed = cohort_sum({client: real[index] for index, client in enumerate(clients)})
         sum_hat = _apply_line(line, np.stack([summed for _ in clients]))
@@ -355,7 +380,7 @@ def plot_leakage_vs_silos(csv_path="results/tables/sums_blood.csv",
     import matplotlib.pyplot as plt
 
     frame = pd.read_csv(csv_path)
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharex=True)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
     _plot_metric_panel(
         axes[0], frame,
         {"individual_row_counts_r2", "sumsum_row_counts_r2", "peer_row_other_counts_r2"},
@@ -365,6 +390,12 @@ def plot_leakage_vs_silos(csv_path="results/tables/sums_blood.csv",
         axes[1], frame,
         {"sumsum_bias_presence_auc", "sumsum_row_presence_auc", "sumsum_decaf_presence_auc"},
         "support AUC from the sum", ylabel="presence AUC",
+    )
+    _plot_metric_panel(
+        axes[2], frame,
+        {"individual_bias_union_presence_auc", "individual_row_union_presence_auc",
+         "individual_decaf_union_presence_auc"},
+        "attribution AUC on union classes", ylabel="presence AUC",
     )
     axes[0].set_xlabel("silos N")
     axes[1].set_xlabel("silos N")
