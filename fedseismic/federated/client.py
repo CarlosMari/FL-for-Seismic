@@ -24,8 +24,8 @@ class ClientTrainer:
 
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
                  lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9,
-                 num_classes=None, logit_adjust=False, class_reweight=False,
-                 public_loader=None):
+                 num_classes=None, logit_adjust=False, prior_smooth=0.0,
+                 class_reweight=False, public_loader=None):
         self.model = model
         self.loader = loader
         self.criterion = criterion
@@ -37,6 +37,7 @@ class ClientTrainer:
         self.momentum = momentum
         self.num_classes = num_classes
         self.logit_adjust = bool(logit_adjust)
+        self.prior_smooth = float(prior_smooth)
         self.class_reweight = bool(class_reweight)
         self.public_loader = public_loader
         self.optimizer = None
@@ -62,6 +63,9 @@ class ClientTrainer:
         if not self.logit_adjust or not self.num_classes:
             return None
         pi = class_frequency(self.loader, self.num_classes)
+        smooth = self.prior_smooth
+        if smooth:
+            pi = (1.0 - smooth) * pi + smooth / float(self.num_classes)
         return torch.as_tensor(
             np.log(np.clip(pi, 1e-8, None)), device=self.device, dtype=torch.float,
         )
@@ -120,6 +124,84 @@ class ClientTrainer:
         self.optimizer = None
         self.model.zero_grad(set_to_none=True)
         return self
+
+
+class StepClientTrainer(ClientTrainer):
+    """A fixed number of full-dataset steps, not epochs of minibatches.
+
+    ``example`` is the usual mean over examples, so a class contributes in
+    proportion to its count. ``class`` is the mean of the per-class mean
+    gradients, over the classes this client holds. The class prior is not
+    added in the loss. The server adds it at local evaluation when asked.
+    """
+
+    def __init__(self, *args, local_steps=1, gradient_balance="example", **kwargs):
+        super().__init__(*args, **kwargs)
+        if int(local_steps) < 1:
+            raise ValueError("local_steps must be positive")
+        if gradient_balance not in {"example", "class"}:
+            raise ValueError("gradient_balance must be 'example' or 'class'")
+        self.local_steps = int(local_steps)
+        self.gradient_balance = gradient_balance
+
+    def train(self, global_state=None):
+        self.model.train()
+        self.model.to(self.device)
+        self.optimizer = self._make_optimizer()
+        for _ in range(self.local_steps):
+            if self.gradient_balance == "class":
+                self._class_step()
+            else:
+                self._example_step()
+        return self
+
+    def _example_step(self):
+        seen = self._mean_backward(None)
+        if seen:
+            self.optimizer.step()
+
+    def _class_step(self):
+        present = np.flatnonzero(self._class_counts(self.loader) > 0)
+        if len(present) == 0:
+            return
+        accumulated = None
+        for class_index in present:
+            seen = self._mean_backward(int(class_index))
+            if not seen:
+                continue
+            grads = [parameter.grad.detach().clone() for parameter in self.model.parameters()]
+            if accumulated is None:
+                accumulated = grads
+            else:
+                accumulated = [left + right for left, right in zip(accumulated, grads)]
+        if accumulated is None:
+            return
+        scale = 1.0 / float(len(present))
+        for parameter, grad in zip(self.model.parameters(), accumulated):
+            parameter.grad = grad * scale
+        self.optimizer.step()
+
+    def _mean_backward(self, class_index):
+        """Mean gradient of one class, or of every example when ``class_index`` is None."""
+        self.optimizer.zero_grad(set_to_none=True)
+        seen = 0
+        for images, targets, _ in self.loader:
+            if class_index is not None:
+                mask = targets == class_index
+                if not bool(mask.any()):
+                    continue
+                images = images[mask]
+                targets = targets[mask]
+            images = images.to(self.device, dtype=torch.float)
+            targets = targets.to(self.device, dtype=torch.long)
+            loss = F.cross_entropy(_logits(self.model(images)), targets, reduction="sum")
+            loss.backward()
+            seen += int(targets.shape[0])
+        if seen:
+            for parameter in self.model.parameters():
+                if parameter.grad is not None:
+                    parameter.grad.div_(seen)
+        return seen
 
 
 class FedProxClientTrainer(ClientTrainer):

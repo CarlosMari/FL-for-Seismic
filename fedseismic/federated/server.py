@@ -18,6 +18,7 @@ from .aggregation import (
 from .client import (
     ClientTrainer,
     DittoClientTrainer,
+    StepClientTrainer,
     FedBNClientTrainer,
     FedProxClientTrainer,
     FedVLSClientTrainer,
@@ -93,6 +94,8 @@ class Server:
     def _trainer(self, client):
         if client not in self._client_trainers:
             factory = self.client_trainer_factory
+            if factory is None and getattr(self.config, "local_steps", None):
+                factory = StepClientTrainer
             if factory is None:
                 factory = {
                     "fedprox": FedProxClientTrainer,
@@ -112,6 +115,7 @@ class Server:
                 optimizer=self.config.optimizer, momentum=self.config.momentum,
                 num_classes=self.config.num_classes,
                 logit_adjust=bool(getattr(self.config, "logit_adjust", False)),
+                prior_smooth=float(getattr(self.config, "prior_smooth", 0.0)),
                 class_reweight=bool(getattr(self.config, "class_reweight", False)),
                 public_loader=(
                     self.public_loader if getattr(self.config, "train_public_pad", False) else None
@@ -129,6 +133,9 @@ class Server:
                 kwargs["grad_clip"] = self.config.grad_clip
             if factory is DittoClientTrainer:
                 kwargs["ditto_lambda"] = self.config.ditto_lambda
+            if getattr(self.config, "local_steps", None):
+                kwargs["local_steps"] = int(self.config.local_steps)
+                kwargs["gradient_balance"] = self.config.gradient_balance
             self._client_trainers[client] = factory(**kwargs)
         return self._client_trainers[client]
 
@@ -209,6 +216,11 @@ class Server:
         histograms = []
         local_mious = []
         last_round = round_index + 1 >= self.config.num_rounds
+        if (
+            self.privacy_logger is not None
+            and getattr(self.config, "privacy_save_received", False)
+        ):
+            self.privacy_logger.write_received(round_index + 1, global_state)
         for client in selected:
             trainer = self._trainer(client)
             trainer.download(global_state)
@@ -355,7 +367,8 @@ class Server:
                 model = self.model_factory()
                 model.load_state_dict(personal)
             log_prior = None
-            if getattr(self.config, "logit_adjust", False) and self.client_info is not None:
+            use_prior = getattr(self.config, "logit_adjust", False) or getattr(self.config, "infer_log_prior", False)
+            if use_prior and self.client_info is not None:
                 pi = np.asarray(self.client_info[client]["class_fracs"], dtype=np.float64)
                 log_prior = np.log(np.clip(pi, 1e-8, None))
             scores.append(_accuracy(model, loader, self.device, log_prior))

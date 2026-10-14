@@ -111,6 +111,16 @@ class PrivacyLogger:
         if self.save_local:
             self.write_local(client, uploaded)
 
+    def write_received(self, round_index, state):
+        """The global model every client in this round downloaded, before local training."""
+        folder = self.run_dir / "received"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"round_{int(round_index):03d}.pt"
+        torch.save(
+            {key: tensor.detach().cpu() for key, tensor in state.items()},
+            path,
+        )
+
     def write_head_delta(self, round_index, client, weight_delta, bias_delta):
         """Classifier change, upload minus the global the client received."""
         folder = head_dir(self.run_dir)

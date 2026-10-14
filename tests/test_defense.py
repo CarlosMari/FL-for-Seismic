@@ -51,6 +51,23 @@ class PadTests(unittest.TestCase):
         self.assertGreater(int((kept == 2).sum()), 0)
 
 
+class SmoothPriorTests(unittest.TestCase):
+    def test_full_smoothing_is_a_constant_and_none_keeps_the_client_prior(self):
+        trainer = ClientTrainer(
+            _Net(), _loader([0] * 8), nn.CrossEntropyLoss(),
+            device="cpu", num_classes=2, logit_adjust=True, prior_smooth=0.0,
+        )
+        raw = trainer._log_prior().detach().numpy()
+        self.assertLess(raw[1], raw[0])
+        trainer.prior_smooth = 1.0
+        flat = trainer._log_prior().detach().numpy()
+        self.assertAlmostEqual(float(flat[0]), float(flat[1]))
+        trainer.prior_smooth = 0.5
+        mixed = trainer._log_prior().detach().numpy()
+        self.assertAlmostEqual(float(mixed[0]), np.log(0.75), places=5)
+        self.assertAlmostEqual(float(mixed[1]), np.log(0.25), places=5)
+
+
 class DefenseLossTests(unittest.TestCase):
     def test_pad_gives_the_absent_class_a_larger_weight_and_a_private_prior(self):
         trainer = ClientTrainer(

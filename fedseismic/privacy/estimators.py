@@ -71,8 +71,22 @@ def mean_logits(model, loader, num_classes, device="cpu", max_batches=None, star
 
 
 def extract_last_linear(state):
-    """Return ``(weight, bias)`` for the last class-scoring tensor in ``state``."""
+    """Return ``(weight, bias)`` for the last class-scoring tensor in ``state``.
+
+    The seismic UNet has an auxiliary ``reconstruct`` head after the
+    segmentation head ``outc``. The facies scores come from ``outc``, so it
+    wins when present; otherwise the last linear/conv tensor is used.
+    """
     items = list(state.items())
+    if "outc.weight" in state:
+        weight = state["outc.weight"]
+        bias = state.get("outc.bias")
+        weight_np = torch.as_tensor(weight).detach().cpu().float().numpy()
+        bias_np = (
+            torch.as_tensor(bias).detach().cpu().float().numpy()
+            if bias is not None else None
+        )
+        return weight_np, bias_np
     linear = [
         (key, tensor) for key, tensor in items
         if key.endswith("weight") and torch.as_tensor(tensor).ndim == 2

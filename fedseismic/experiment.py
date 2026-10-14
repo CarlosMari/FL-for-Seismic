@@ -214,16 +214,42 @@ def _client_partitions(cfg, targets, rng):
     return partition_iid_indices(len(targets), cfg.num_clients, rng)
 
 
+def _train_splits_or_retry(cfg, pool_targets, kept, seed, base_rng, tries=25):
+    """Client train/test splits with no empty train client.
+
+    Extreme Dirichlet draws can leave a client with nothing to train on,
+    which crashes the train DataLoader. Attempt 0 uses ``base_rng`` exactly
+    as before, so published splits are unchanged. Later attempts use derived
+    seeds (deterministic given the run seed) and warn. Finished runs never
+    triggered this, so their splits are unchanged. ``howmuch.real_counts``
+    uses the same helper, so its label check stays in sync.
+    """
+    import warnings
+
+    for attempt in range(int(tries)):
+        rng = base_rng if attempt == 0 else np.random.RandomState(
+            int(seed) * 7919 + attempt * 131 + 7)
+        partitions = _client_partitions(cfg, pool_targets, rng)
+        if kept is not None:
+            partitions = remap_partitions(partitions, kept)
+        train_parts, test_parts = split_client_local_test(
+            partitions, cfg.local_test_ratio, rng=rng,
+        )
+        empty = [index for index, part in enumerate(train_parts) if len(part) == 0]
+        if not empty:
+            if attempt > 0:
+                warnings.warn(f"partition retry {attempt} for seed {seed}")
+            return train_parts, test_parts
+    raise ValueError(f"no non-empty client partition in {tries} tries (seed {seed})")
+
+
 def _setup_cifar(cfg, seed, rng):
     train_images, train_targets, test_images, test_targets = load_cifar10(cfg.data_root)
     if cfg.num_classes != 10:
         cfg.num_classes = 10
     pool_targets, kept, pad = _public_pad(cfg, train_targets, seed)
-    partitions = _client_partitions(cfg, pool_targets, rng)
-    if kept is not None:
-        partitions = remap_partitions(partitions, kept)
-    train_parts, test_parts = split_client_local_test(
-        partitions, cfg.local_test_ratio, rng=rng,
+    train_parts, test_parts = _train_splits_or_retry(
+        cfg, pool_targets, kept, seed, rng,
     )
     kwargs = _loader_kwargs(cfg)
     loaders = build_cifar_loaders(
@@ -252,11 +278,8 @@ def _setup_medmnist(cfg, seed, rng):
     )
     cfg.num_classes = spec["n_classes"]
     pool_targets, kept, pad = _public_pad(cfg, train_targets, seed)
-    partitions = _client_partitions(cfg, pool_targets, rng)
-    if kept is not None:
-        partitions = remap_partitions(partitions, kept)
-    train_parts, test_parts = split_client_local_test(
-        partitions, cfg.local_test_ratio, rng=rng,
+    train_parts, test_parts = _train_splits_or_retry(
+        cfg, pool_targets, kept, seed, rng,
     )
     kwargs = _loader_kwargs(cfg)
     n_channels = spec["n_channels"]

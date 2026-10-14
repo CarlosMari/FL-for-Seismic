@@ -230,3 +230,57 @@ property-inference channel. `oracle` and `upload` modes are not on the figure.
 Code: `fedseismic/eval/metrics.py`, `fedseismic/privacy/metrics.py`,
 `fedseismic/privacy/distribution.py`, `fedseismic/privacy/whispers.py`,
 `fedseismic/privacy/boundary_r2.py`, `fedseismic/privacy/round_scores.py`.
+
+---
+
+## Prior floor and client bootstrap
+
+The prior-only floor scores every client with the population mix, the mean of the clients' train shares in that seed. Presence AUC of that score is the floor. Leakage is the attack AUC minus the floor. For proportions, R² = 0 is the same floor, because `r2_score` compares against the mean share.
+
+Intervals resample clients inside each seed, 1000 times, and take the 2.5 and 97.5 percentiles. A seed's statistic is recomputed on the resampled clients, then averaged across seeds. Classes and rounds of one client stay together.
+
+## Bias slope
+
+The bias change is the classifier bias of the upload minus the bias of the model that client received, averaged over the client's participations. One ordinary-least-squares slope pools clients and classes. The centered intercept is the intercept plus the slope divided by the number of classes. It is zero when the change is proportional to π − 1/K.
+
+## Share bins
+
+Absent is a train share at or below `1e-3`. The other bins are (0.001, 0.03], (0.03, 0.075], (0.075, 0.175], and a share of at least 0.25. The first three are centred on 0.01, 0.05, and 0.10. A share in (0.175, 0.25) is in none of them.
+
+## Decaf
+
+On one participation, a class is absent under the hard rule when no entry of its classifier-row change is positive. A client is called absent for that class only when this is true of every participation. The continuous score is the sum of the positive entries, averaged over participations. Higher means present. Proportions use a line from that score to the class share, fit on shadow clients, with hard-absent classes set to zero before normalizing.
+
+## How much
+
+The count of class k is n_k. The dataset size is n = Σ_k n_k. The proportion is π_k = n_k / n. A class is in the support when π_k > 1e-3. These scores are for an observer who sees one client's update (server-individual). The code is `fedseismic/privacy/howmuch.py`.
+
+### Counts R²
+
+**How.** Compare predicted counts with true counts over client-class pairs. The denominator is the residual of predicting, for each class, the mean count of that class across the clients in the seed. That mean is the population-count floor, so this R² is already the amount above the floor. It is not `r2_score` on the pooled vector: that baseline is one grand mean and mixes classes of different typical counts.
+
+**Means.** Whether the update names how many examples of each class the client holds.
+
+### Size R²
+
+**How.** `r2_score` of predicted n against true n, one number per client. The baseline is the mean n in the seed.
+
+**Means.** Whether the update names the size of the client's dataset. The floor is 0.
+
+### Proportions given support
+
+**How.** The truth on a client is π renormalized on its true support and zero elsewhere. The baseline inside the denominator is 1/|S| on that support and zero elsewhere, so predicting the uniform distribution on the true support scores 0.
+
+The oracle attacker is told the support and renormalizes its non-negative count estimates on that support. The estimated attacker first marks a support of its own, with a logistic fit on shadow clients, and renormalizes on the support it marked. A wrong support lowers the score. Both floors are 0 by construction.
+
+**Means.** The fraction among the classes the client has, separated from the question of which classes those are.
+
+### Support
+
+**How.** Presence AUC, and the true-positive rate at a false-positive rate of 10%. The prior-only floor scores every client with the population mix. Leakage is the attack number minus that floor.
+
+**Means.** Which classes are present. Kept because a rare class can be the whole secret.
+
+### Pooled mix R²
+
+`r2_score` of the predicted proportions against π, classes pooled. It mixes support and proportions. It is kept for comparison with earlier tables and is labelled that way. It is not the how-much axis.

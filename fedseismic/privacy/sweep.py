@@ -28,6 +28,12 @@ def _job_name(job):
     )
     if job.get("dp_noise_multiplier") is not None:
         name = f"{name}_s{job['dp_noise_multiplier']}"
+    if job.get("gradient_balance") and job.get("local_steps"):
+        name = f"{name}_b{job['gradient_balance']}_s{job['local_steps']}"
+    if job.get("num_clients") is not None:
+        name = f"{name}_n{int(job['num_clients'])}"
+    if job.get("sample_ratio") is not None and abs(float(job["sample_ratio"]) - 1.0) > 1e-9:
+        name = f"{name}_r{float(job['sample_ratio']):g}"
     return name
 
 
@@ -41,48 +47,106 @@ def expand_jobs(spec):
     lambda_caps = spec.get("lambda_cap") or [10.0]
     diversities = spec.get("fedkper_diversity") or ["infer"]
     oracle_reference = bool(spec.get("oracle_reference", False))
+    silo_counts = spec.get("num_clients_list") or (
+        [spec["num_clients"]] if spec.get("num_clients") is not None else [None]
+    )
+    sample_ratios = spec.get("sample_ratio_list") or (
+        [spec["sample_ratio"]] if spec.get("sample_ratio") is not None else [None]
+    )
     for algorithm in algorithms:
         for het in heterogeneity:
-            base = {
-                "algorithm": algorithm,
-                "split": het.get("split", "noniid"),
-                "partition_alpha": het.get("partition_alpha", 0.1),
-            }
-            if algorithm == "fedkper":
-                for lam in lambda_caps:
-                    for diversity in diversities:
-                        job = dict(base)
-                        job["lambda_cap"] = lam
-                        job["fedkper_diversity"] = diversity
-                        job["agg_strategy"] = "fedkper"
-                        jobs.append(job)
-                if oracle_reference and "oracle" not in diversities:
-                    job = dict(base)
-                    job["lambda_cap"] = lambda_caps[-1]
-                    job["fedkper_diversity"] = "oracle"
-                    job["agg_strategy"] = "fedkper"
-                    jobs.append(job)
-            else:
-                noises = spec.get("dp_noise_multiplier") if algorithm == "dpfedavg" else [None]
-                if not isinstance(noises, list):
-                    noises = [noises]
-                for noise in noises:
-                    job = dict(base)
-                    job["lambda_cap"] = None
-                    job["fedkper_diversity"] = None
-                    if algorithm == "fedbn":
-                        job["agg_strategy"] = "equal"
-                    elif algorithm == "fedprox":
-                        job["agg_strategy"] = "equal"
+            for silos in silo_counts:
+                for ratio in sample_ratios:
+                    base = {
+                        "algorithm": algorithm,
+                        "split": het.get("split", "noniid"),
+                        "partition_alpha": het.get("partition_alpha", 0.1),
+                    }
+                    if silos is not None:
+                        base["num_clients"] = int(silos)
+                        base["sample_ratio"] = 1.0
+                    if ratio is not None:
+                        base["sample_ratio"] = float(ratio)
+                    if algorithm == "fedkper":
+                        for lam in lambda_caps:
+                            for diversity in diversities:
+                                job = dict(base)
+                                job["lambda_cap"] = lam
+                                job["fedkper_diversity"] = diversity
+                                job["agg_strategy"] = "fedkper"
+                                jobs.append(job)
+                        if oracle_reference and "oracle" not in diversities:
+                            job = dict(base)
+                            job["lambda_cap"] = lambda_caps[-1]
+                            job["fedkper_diversity"] = "oracle"
+                            job["agg_strategy"] = "fedkper"
+                            jobs.append(job)
                     else:
-                        job["agg_strategy"] = het.get("agg_strategy", "equal")
-                    if noise is not None:
-                        job["dp_noise_multiplier"] = noise
-                        job["dp_clip_norm"] = spec.get("dp_clip_norm", 5.0)
-                    jobs.append(job)
+                        noises = spec.get("dp_noise_multiplier") if algorithm == "dpfedavg" else [None]
+                        if not isinstance(noises, list):
+                            noises = [noises]
+                        for noise in noises:
+                            job = dict(base)
+                            job["lambda_cap"] = None
+                            job["fedkper_diversity"] = None
+                            if algorithm == "fedbn":
+                                job["agg_strategy"] = "equal"
+                            elif algorithm == "fedprox":
+                                job["agg_strategy"] = "equal"
+                            else:
+                                job["agg_strategy"] = het.get("agg_strategy", "equal")
+                            if noise is not None:
+                                job["dp_noise_multiplier"] = noise
+                                job["dp_clip_norm"] = spec.get("dp_clip_norm", 5.0)
+                            jobs.append(job)
     for job in jobs:
         job["name"] = _job_name(job)
+    jobs = _expand_steps(jobs, spec)
+    norms = spec.get("norm_list")
+    if isinstance(norms, list):
+        multiplied = []
+        for job in jobs:
+            for norm in norms:
+                copy = dict(job)
+                copy["norm"] = str(norm)
+                copy["name"] = f"{job['name']}_{str(norm)}norm"
+                multiplied.append(copy)
+        jobs = multiplied
+    smooth = spec.get("prior_smooth")
+    smooth = spec.get("prior_smooth")
+    if isinstance(smooth, list):
+        multiplied = []
+        for job in jobs:
+            for value in smooth:
+                copy = dict(job)
+                copy["prior_smooth"] = float(value)
+                copy["name"] = f"{job['name']}_p{float(value):g}"
+                multiplied.append(copy)
+        return multiplied
     return jobs
+
+
+def _expand_steps(jobs, spec):
+    """One job per full-dataset step count and per gradient weighting."""
+    steps = spec.get("local_steps")
+    balances = spec.get("gradient_balance")
+    if not steps and not balances:
+        return jobs
+    if not isinstance(steps, list):
+        steps = [steps]
+    if not isinstance(balances, list):
+        balances = [balances] if balances else ["example"]
+    multiplied = []
+    for job in jobs:
+        for balance in balances:
+            for step in steps:
+                copy = dict(job)
+                copy["local_steps"] = int(step)
+                copy["gradient_balance"] = str(balance)
+                copy["infer_log_prior"] = str(balance) == "class"
+                copy["name"] = _job_name(copy)
+                multiplied.append(copy)
+    return multiplied
 
 
 def _cell_config(base, spec, job, seed, output_dir, device=None):
@@ -98,10 +162,15 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["num_rounds"] = spec["num_rounds"]
     if spec.get("local_epochs") is not None:
         updates["local_epochs"] = spec["local_epochs"]
-    if spec.get("num_clients") is not None:
+    # Job-level silo counts and participation override spec-level defaults.
+    if spec.get("num_clients") is not None and job.get("num_clients") is None:
         updates["num_clients"] = spec["num_clients"]
-    if spec.get("sample_ratio") is not None:
+    if spec.get("sample_ratio") is not None and job.get("sample_ratio") is None:
         updates["sample_ratio"] = spec["sample_ratio"]
+    if job.get("num_clients") is not None:
+        updates["num_clients"] = int(job["num_clients"])
+    if job.get("sample_ratio") is not None:
+        updates["sample_ratio"] = float(job["sample_ratio"])
     if spec.get("privacy_round_batches") is not None:
         updates["privacy_round_batches"] = spec["privacy_round_batches"]
     if spec.get("ditto_lambda") is not None:
@@ -110,6 +179,10 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["privacy_log_last_only"] = spec["privacy_log_last_only"]
     if spec.get("logit_adjust") is not None:
         updates["logit_adjust"] = spec["logit_adjust"]
+    if job.get("prior_smooth") is not None:
+        updates["prior_smooth"] = float(job["prior_smooth"])
+    if spec.get("privacy_save_received") is not None:
+        updates["privacy_save_received"] = spec["privacy_save_received"]
     if spec.get("class_reweight") is not None:
         updates["class_reweight"] = spec["class_reweight"]
     if spec.get("public_pad_per_class") is not None:
@@ -126,6 +199,14 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["lambda_cap"] = job["lambda_cap"]
     if job.get("fedkper_diversity"):
         updates["fedkper_diversity"] = job["fedkper_diversity"]
+    if job.get("local_steps") is not None:
+        updates["local_steps"] = int(job["local_steps"])
+    if job.get("gradient_balance"):
+        updates["gradient_balance"] = job["gradient_balance"]
+    if job.get("infer_log_prior") is not None:
+        updates["infer_log_prior"] = bool(job["infer_log_prior"])
+    if job.get("norm") is not None:
+        updates["norm"] = str(job["norm"])
     if device is not None:
         updates["device"] = device
     return replace(base, **updates)

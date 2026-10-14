@@ -1,0 +1,18 @@
+{
+  "base": "configs/fedkper_bloodmnist.json",
+  "output_root": "results/runs/fedkper_head_blood_logit",
+  "num_rounds": 40,
+  "seeds": [0, 1, 2, 3, 42],
+  "algorithms": ["fedkper"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "lambda_cap": [10],
+  "fedkper_diversity": ["infer"],
+  "oracle_reference": false,
+  "logit_adjust": true,
+  "prior_smooth": [0],
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": true,
+  "privacy_save_received": true
+}
