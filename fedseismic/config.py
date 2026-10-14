@@ -89,6 +89,7 @@ class RunConfig:
     grad_clip: float = 5.0
     fedkper_diversity: str = "infer"
     local_test_ratio: float = 0.2
+    spatial_holdout_buffer: int = 0
     privacy_delta_dim: int | None = 4096
     privacy_probe_batches: int | None = 8
     privacy_log_last_only: bool = False
@@ -142,6 +143,8 @@ class RunConfig:
             raise ValueError("sample_ratio must be in (0, 1]")
         if not 0 <= self.local_test_ratio < 1:
             raise ValueError("local_test_ratio must be in [0, 1)")
+        if int(self.spatial_holdout_buffer) < 0:
+            raise ValueError("spatial_holdout_buffer must be non-negative")
         self.optimizer = str(self.optimizer).strip().lower()
         if self.optimizer not in {"adamw", "sgd"}:
             raise ValueError("optimizer must be 'adamw' or 'sgd'")

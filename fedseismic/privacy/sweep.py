@@ -191,6 +191,8 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["train_public_pad"] = spec["train_public_pad"]
     if spec.get("presence_rehearsal") is not None:
         updates["presence_rehearsal"] = spec["presence_rehearsal"]
+    if spec.get("spatial_holdout_buffer") is not None:
+        updates["spatial_holdout_buffer"] = int(spec["spatial_holdout_buffer"])
     if job.get("dp_noise_multiplier") is not None:
         updates["dp_noise_multiplier"] = job["dp_noise_multiplier"]
     if job.get("dp_clip_norm") is not None:

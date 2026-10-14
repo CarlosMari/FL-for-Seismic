@@ -168,7 +168,8 @@ def _setup_seismic(cfg, seed, rng):
         if cfg.split == "noniid"
         else partition_iid(train_seismic.shape[1], cfg.num_clients, rng)
     )
-    train_parts, test_parts = split_client_local_test(partitions, cfg.local_test_ratio)
+    train_parts, test_parts = split_client_local_test(
+        partitions, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
     kwargs = _loader_kwargs(cfg)
     loaders = build_client_loaders(
         train_seismic, train_labels, train_parts, cfg.batch_size, **kwargs,

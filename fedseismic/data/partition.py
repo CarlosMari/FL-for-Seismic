@@ -65,15 +65,20 @@ def remap_partitions(parts, kept):
     return [[int(kept[index]) for index in part] for part in parts]
 
 
-def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
+def split_client_local_test(partitions, local_test_ratio=0.2, rng=None, buffer=0):
     """Hold out part of each client's own indices.
 
     With ``rng is None`` (seismic), take the contiguous tail of the sorted
     chunk. With an RNG (CIFAR), draw a random subset so the holdout is not
-    an artifact of image index order.
+    an artifact of image index order. ``buffer`` (seismic only) drops that
+    many crosslines between train and test so a spatially adjacent holdout
+    does not inflate local scores by interpolating local geology. Zero by
+    default, which reproduces the legacy splits exactly.
     """
     if not 0 <= local_test_ratio < 1:
         raise ValueError("local_test_ratio must be in [0, 1)")
+    if int(buffer) < 0:
+        raise ValueError("buffer must be non-negative")
     train_partitions = []
     test_partitions = []
     for idxs in partitions:
@@ -86,6 +91,11 @@ def split_client_local_test(partitions, local_test_ratio=0.2, rng=None):
         n_test = min(n_test, len(ordered) - 1)
         if rng is None:
             test_idxs = ordered[-n_test:]
+            if buffer:
+                cutoff = max(len(ordered) - n_test - int(buffer), 1)
+                train_partitions.append(ordered[:cutoff])
+                test_partitions.append(test_idxs)
+                continue
         else:
             chosen = rng.choice(len(ordered), size=n_test, replace=False)
             test_idxs = sorted(ordered[int(i)] for i in chosen)

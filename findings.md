@@ -385,6 +385,12 @@ Prediction. The outc-head row-size channel should read per-site facies counts un
 
 Note a bug found during setup: `extract_last_linear` picked the auxiliary `reconstruct` head (Conv2d 64→1) instead of the segmentation head `outc` (Conv2d 64→6) for UNet states, so logged head deltas tracked reconstruction, not facies. Fixed to prefer `outc.weight` when present; classification models have no `outc` key and are unaffected. The timing run used the old code and is utility-only (no `received/` saved).
 
+## 2026-10-14, seismic holdout fix (expert issue C, code part)
+
+`split_client_local_test` takes a `buffer` (seismic/rng=None path only): that many crosslines between train and test are dropped from both, so the holdout is spatially separated instead of adjacent. Wired as `RunConfig.spatial_holdout_buffer` (default 0 = legacy splits byte-identical, verified: 186/47 adjacent vs 176/47 with gap 10 on a 233-line site) plus sweep passthrough. The running 24-run grid keeps buffer 0; a buffer-holdout utility comparison runs after it, before any seismic number is interpreted.
+
+Contamination check for the reconstruct-vs-outc fix: classification states have no `outc.weight` key, so every CNN number (all tables) is bit-identical before/after. On seismic, only the timing run used the old code and it saved no `received/` and feeds no attack table; all 8 finished grid runs postdate the fix; no seismic attack table exists yet. Nothing reported drew on reconstruct-head deltas.
+
 ## 2026-10-14, seismic timing run
 
 Single FedAvg run, N=5 contiguous sites, 20 rounds, 61 min on the RTX 3090 (~3 min/round). Final global mIoU 0.55, deployed-local mIoU 0.98, global-on-local 0.70. The personalization gap is enormous — sites differ enough that the shared model loses nearly half its mIoU off-site. View artifacts confirm BN running stats are captured per upload (`bn::*.running_mean/var`, needed for the statistics channel). Full grid launched: `configs/sweeps/seismic_f3.json`, 8 jobs (FedAvg/FedBN × N=3,5 × batch/group norm) × 3 seeds = 24 runs, ~20h. FedBN+group is the near-duplicate control of FedAvg+group (no BN to keep local), kept as a sanity check.

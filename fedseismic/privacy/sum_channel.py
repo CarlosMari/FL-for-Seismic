@@ -299,14 +299,27 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
         scored = score_seed_sums(run, cache[cfg.dataset], round_lo=round_lo, round_hi=round_hi)
         job = run.parent.name
         key = (str(cfg.dataset), job, int(cfg.num_clients), float(cfg.partition_alpha),
-               str(cfg.algorithm), bool(cfg.logit_adjust))
+               str(cfg.algorithm), bool(cfg.logit_adjust), float(cfg.prior_smooth))
         per_seed.setdefault(key, []).append(scored)
     table = []
     rng = np.random.RandomState(0)
     for key in sorted(per_seed):
-        dataset, job, n_members, alpha, algorithm, logit = key
+        dataset, job, n_members, alpha, algorithm, logit, smooth = key
         seeds = per_seed[key]
-        method = "FedLC" if logit else ("FedPer" if algorithm == "fedper" else "FedAvg")
+        if str(algorithm) == "fedkper" and bool(logit):
+            method = "FedKPer+logit"
+        elif str(algorithm) == "fedkper":
+            method = "FedKPer"
+        elif str(algorithm) == "fedper":
+            method = "FedPer"
+        elif bool(logit) and abs(float(smooth)) < 1e-9:
+            method = "FedLC"
+        elif bool(logit) and abs(float(smooth) - 1.0) < 1e-9:
+            method = "FedAvg"
+        elif bool(logit):
+            method = f"λ={float(smooth):g}"
+        else:
+            method = "FedAvg"
         metrics = sorted({name for row in seeds for name in row if name not in {"n_members", "seed", "spearman_floor"}})
         floor_point = _mean_finite(row["spearman_floor"] for row in seeds)
         for metric in metrics:
