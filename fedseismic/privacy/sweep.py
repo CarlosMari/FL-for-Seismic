@@ -28,8 +28,10 @@ def _job_name(job):
     )
     if job.get("dp_noise_multiplier") is not None:
         name = f"{name}_s{job['dp_noise_multiplier']}"
-    if job.get("gradient_balance") and job.get("local_steps"):
-        name = f"{name}_b{job['gradient_balance']}_s{job['local_steps']}"
+    balance = job.get("gradient_balance")
+    if balance and (balance != "example" or job.get("local_steps")):
+        step_tag = f"_s{job['local_steps']}" if job.get("local_steps") else ""
+        name = f"{name}_b{balance}{step_tag}"
     if job.get("num_clients") is not None:
         name = f"{name}_n{int(job['num_clients'])}"
     if job.get("sample_ratio") is not None and abs(float(job["sample_ratio"]) - 1.0) > 1e-9:
@@ -141,9 +143,10 @@ def _expand_steps(jobs, spec):
         for balance in balances:
             for step in steps:
                 copy = dict(job)
-                copy["local_steps"] = int(step)
+                if step is not None:
+                    copy["local_steps"] = int(step)
                 copy["gradient_balance"] = str(balance)
-                copy["infer_log_prior"] = str(balance) == "class"
+                copy["infer_log_prior"] = str(balance) in {"class", "class_minibatch"}
                 copy["name"] = _job_name(copy)
                 multiplied.append(copy)
     return multiplied

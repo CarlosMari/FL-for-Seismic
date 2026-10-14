@@ -18,6 +18,7 @@ from .aggregation import (
 from .client import (
     ClientTrainer,
     DittoClientTrainer,
+    MinibatchBalancedTrainer,
     StepClientTrainer,
     FedBNClientTrainer,
     FedProxClientTrainer,
@@ -96,6 +97,8 @@ class Server:
             factory = self.client_trainer_factory
             if factory is None and getattr(self.config, "local_steps", None):
                 factory = StepClientTrainer
+            if factory is None and str(getattr(self.config, "gradient_balance", "example")) == "class_minibatch":
+                factory = MinibatchBalancedTrainer
             if factory is None:
                 factory = {
                     "fedprox": FedProxClientTrainer,

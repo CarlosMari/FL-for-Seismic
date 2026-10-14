@@ -137,8 +137,8 @@ class RunConfig:
         if self.local_steps is not None and int(self.local_steps) < 1:
             raise ValueError("local_steps must be positive")
         self.gradient_balance = str(self.gradient_balance).strip().lower()
-        if self.gradient_balance not in {"example", "class"}:
-            raise ValueError("gradient_balance must be 'example' or 'class'")
+        if self.gradient_balance not in {"example", "class", "class_minibatch"}:
+            raise ValueError("gradient_balance must be 'example', 'class', or 'class_minibatch'")
         if not 0 < self.sample_ratio <= 1:
             raise ValueError("sample_ratio must be in (0, 1]")
         if not 0 <= self.local_test_ratio < 1:

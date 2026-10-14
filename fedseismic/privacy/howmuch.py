@@ -889,6 +889,8 @@ def _method_label(cfg):
     if getattr(cfg, "local_steps", None):
         balance = "balanced" if str(cfg.gradient_balance) == "class" else "count"
         return f"{balance}-{int(cfg.local_steps)}"
+    if str(getattr(cfg, "gradient_balance", "example")) == "class_minibatch":
+        return "balanced-mb"
     if str(cfg.algorithm) == "fedkper" and bool(cfg.logit_adjust):
         return "FedKPer+logit"
     if str(cfg.algorithm) == "fedkper":

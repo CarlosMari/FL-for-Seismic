@@ -143,6 +143,11 @@ def make_shadow_trainer(cfg, model, loader, device, public_loader=None):
             gradient_balance=str(getattr(cfg, "gradient_balance", "example")),
             **kwargs,
         )
+    if str(getattr(cfg, "gradient_balance", "example")) == "class_minibatch":
+        from fedseismic.federated.client import MinibatchBalancedTrainer
+        return MinibatchBalancedTrainer(
+            model, loader, nn.CrossEntropyLoss(), device=device, **kwargs,
+        )
     if str(getattr(cfg, "algorithm", "")) == "fedkper":
         from fedseismic.federated.fedkper import FedKPerClientTrainer
         return FedKPerClientTrainer(

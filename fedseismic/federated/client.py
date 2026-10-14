@@ -139,8 +139,8 @@ class StepClientTrainer(ClientTrainer):
         super().__init__(*args, **kwargs)
         if int(local_steps) < 1:
             raise ValueError("local_steps must be positive")
-        if gradient_balance not in {"example", "class"}:
-            raise ValueError("gradient_balance must be 'example' or 'class'")
+        if gradient_balance not in {"example", "class", "class_minibatch"}:
+            raise ValueError("gradient_balance must be 'example', 'class', or 'class_minibatch'")
         self.local_steps = int(local_steps)
         self.gradient_balance = gradient_balance
 
@@ -202,6 +202,74 @@ class StepClientTrainer(ClientTrainer):
                 if parameter.grad is not None:
                     parameter.grad.div_(seen)
         return seen
+
+
+class MinibatchBalancedTrainer(ClientTrainer):
+    """Five (or ``local_epochs``) epochs of class-balanced minibatches.
+
+    Each batch holds equal shares of every class the client has, cycling
+    small classes, covering the largest class once per epoch. The class
+    prior is NOT added in the loss; the server adds log π at local
+    evaluation when ``infer_log_prior`` is set. This is the realistic
+    version of the full-batch ``class`` step: repeated examples, minibatch
+    noise, and the same per-round compute as ordinary minibatch training.
+    """
+
+    def train(self, global_state=None):
+        self.model.train()
+        self.model.to(self.device)
+        self.optimizer = self._make_optimizer()
+        batches = self._balanced_batches()
+        for _ in range(max(int(self.local_epochs), 1)):
+            for images, targets in batches:
+                images = images.to(self.device, dtype=torch.float)
+                targets = targets.to(self.device, dtype=torch.long)
+                loss = F.cross_entropy(_logits(self.model(images)), targets)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+            batches = self._balanced_batches()
+        return self
+
+    def _balanced_batches(self):
+        dataset = getattr(self.loader, "dataset", None)
+        if dataset is None:
+            raise ValueError("balanced minibatches need a dataset loader")
+        labels = _dataset_labels(dataset)
+        if labels is None:
+            raise ValueError("balanced minibatches need dataset labels")
+        labels = np.asarray(labels).reshape(-1)
+        by_class = {}
+        for position in range(len(dataset)):
+            by_class.setdefault(int(labels[position]), []).append(position)
+        present = sorted(by_class)
+        if not present:
+            return []
+        per_class = max(len(by_class[class_index]) for class_index in present)
+        streams = {}
+        for class_index in present:
+            pool = list(by_class[class_index])
+            order = list(np.random.permutation(pool))
+            while len(order) < per_class:
+                order.extend(np.random.permutation(pool).tolist())
+            streams[class_index] = order[:per_class]
+        loader_batch = int(getattr(self.loader, "batch_size", 0) or 32)
+        quota = max(loader_batch // len(present), 1)
+        batches = []
+        for start in range(0, per_class, quota):
+            images, targets = [], []
+            for class_index in present:
+                for position in streams[class_index][start:start + quota]:
+                    image, target, _ = dataset[position]
+                    images.append(image)
+                    targets.append(int(target))
+                    if len(images) >= loader_batch:
+                        break
+                if len(images) >= loader_batch:
+                    break
+            if images:
+                batches.append((torch.stack(images), torch.as_tensor(targets, dtype=torch.long)))
+        return batches
 
 
 class FedProxClientTrainer(ClientTrainer):
