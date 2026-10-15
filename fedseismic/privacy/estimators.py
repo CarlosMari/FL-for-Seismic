@@ -78,9 +78,14 @@ def extract_last_linear(state):
     wins when present; otherwise the last linear/conv tensor is used.
     """
     items = list(state.items())
-    if "outc.weight" in state:
-        weight = state["outc.weight"]
-        bias = state.get("outc.bias")
+    outc = [
+        (key, tensor) for key, tensor in items
+        if key.startswith("outc.") and key.endswith("weight")
+    ]
+    if outc:
+        key, weight = outc[0]
+        bias_key = key[: -len("weight")] + "bias"
+        bias = state.get(bias_key)
         weight_np = torch.as_tensor(weight).detach().cpu().float().numpy()
         bias_np = (
             torch.as_tensor(bias).detach().cpu().float().numpy()

@@ -391,6 +391,20 @@ Note a bug found during setup: `extract_last_linear` picked the auxiliary `recon
 
 Contamination check for the reconstruct-vs-outc fix: classification states have no `outc.weight` key, so every CNN number (all tables) is bit-identical before/after. On seismic, only the timing run used the old code and it saved no `received/` and feeds no attack table; all 8 finished grid runs postdate the fix; no seismic attack table exists yet. Nothing reported drew on reconstruct-head deltas.
 
+## 2026-10-15, seismic first read (hand-built, last round only)
+
+Table `results/tables/seismic_f3.csv`. All scores hand-built (Pearson on log pixel counts, presence AUC); no shadows, no CIs — 3 seeds × 3–5 sites is too thin for intervals, and UNet shadows (48 × 5 epochs each) are queued only if this control passes. Outc deltas are round 20 only (rounds 1–19 unrecoverable, see head-fix entry).
+
+Presence reads through the bias at 0.91–0.99 AUC on every job (FedAvg and FedBN, batch and group norm). The row-size channel ANTI-reads presence (AUC 0.00–0.06: absent classes move more). Per-site check on N=3 seed 0: c5-absent sites have c5 row sizes 0.37/0.32 vs 0.13 where present, and c5 bias −0.046/−0.006 vs +0.016. Mechanism: with no c5 ground truth, every c5 prediction is an error, so the c5 row accumulates large corrective gradients exactly where the facies is missing. A flipped sign still counts as readable, same rule as the classification defense.
+
+Counts: bias–log-count Pearson +0.55 to +0.78 on all 8 jobs; row–log-count Pearson −0.52 to −0.86 (same inversion — at convergence the fitted majority facies barely move). FedBN matches FedAvg on every head number, as predicted (it only privatizes BN stats).
+
+BN statistics do NOT identify sites here: same-site vs different-site cosine AUC on running-mean stacks is 0.56–0.57 for FedAvg and 0.57 for FedBN — no gap, both near chance. The predicted statistics channel (FedAvg leaks, FedBN/GroupNorm dark) is not supported by this metric. Caveats that could hide it: all 20 rounds pooled (early rounds may separate better), raw stacked means dominated by large layers, cosine on unnormalized stacks. A per-layer early-round cut is the next diagnostic before calling this negative. Note the uploads DO carry BN keys under both methods (FedBN keeps them out of the aggregate but not out of the logged upload); a strict deployment would strip them.
+
+Utility: local mIoU 0.977–0.982 everywhere (adjacent holdout — inflated per issue C, buffer comparison still queued); global mIoU 0.53–0.58 except FedBN N=5 batch at 0.43 (local stats fragment the shared model, expected). The personalization gap is real even if its size is inflated.
+
+Prediction vs outcome: outc reads counts — holds for bias, inverted-but-readable for rows. FedBN≈FedAvg on head — holds. BN-stats gap — does not hold on this metric (diagnostic queued, not a verdict). c5 presence — holds via bias.
+
 ## 2026-10-14, seismic timing run
 
 Single FedAvg run, N=5 contiguous sites, 20 rounds, 61 min on the RTX 3090 (~3 min/round). Final global mIoU 0.55, deployed-local mIoU 0.98, global-on-local 0.70. The personalization gap is enormous — sites differ enough that the shared model loses nearly half its mIoU off-site. View artifacts confirm BN running stats are captured per upload (`bn::*.running_mean/var`, needed for the statistics channel). Full grid launched: `configs/sweeps/seismic_f3.json`, 8 jobs (FedAvg/FedBN × N=3,5 × batch/group norm) × 3 seeds = 24 runs, ~20h. FedBN+group is the near-duplicate control of FedAvg+group (no BN to keep local), kept as a sanity check.
