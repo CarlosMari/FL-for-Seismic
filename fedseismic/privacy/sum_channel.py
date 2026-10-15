@@ -192,12 +192,49 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
                 out[f"individual_{name}_union_presence_auc"] = float(
                     roc_auc_score(cond_labels, np.asarray(cond_scores)))
         # Server-sum: one mean vector; score every member against it, mean the R2.
+        m = len(clients)
         _, summed = cohort_sum({client: real[index] for index, client in enumerate(clients)})
         sum_hat = _apply_line(line, np.stack([summed for _ in clients]))
         out[f"sumsum_{name}_counts_r2"] = counts_r2(counts, sum_hat)
         out[f"sumsum_{name}_counts_spearman"] = _counts_spearman(counts, sum_hat)
         # Presence from the sum: every member scored with the same summed vector.
         out[f"sumsum_{name}_presence_auc"] = _presence_auc(pis, [summed for _ in clients])
+        # Server-sum union presence (Q3-from-the-sum): same labels as the
+        # individual union metric, scored with the summed vector restricted
+        # to union classes. Every member shares one vector, so within-class
+        # attribution is exactly chance by algebra; what the pooled number
+        # can show is prevalence (classes held by more members score higher).
+        union_present = np.zeros(classes, dtype=bool)
+        for pi in pis:
+            union_present |= (to_simplex(pi) > ABSENT)
+        sum_labels, sum_scores = [], []
+        for pi in pis:
+            present = (to_simplex(pi) > ABSENT).astype(int)[union_present]
+            sum_labels.extend(present.tolist())
+            sum_scores.extend(np.asarray(summed, dtype=np.float64)[union_present].tolist())
+        sum_labels = np.asarray(sum_labels)
+        if union_present.sum() == 0 or len(np.unique(sum_labels)) < 2:
+            out[f"sumsum_{name}_union_presence_auc"] = float("nan")
+        else:
+            out[f"sumsum_{name}_union_presence_auc"] = float(
+                roc_auc_score(sum_labels, np.asarray(sum_scores)))
+        # Peer oracle proportions (Q2): the line prediction on the residual,
+        # renormalized on the TRUE union of the other members' supports, vs
+        # the others' mean proportions. At N=2 the residual is the other
+        # member's update, so this equals the individual oracle (sanity).
+        from fedseismic.privacy.howmuch import proportions_r2, renormalize
+        peer_oracle, peer_truth_pi = [], []
+        for index in range(m):
+            residual = (summed * m - real[index]) / max(m - 1, 1)
+            pred = _apply_line(line, residual.reshape(1, -1)).reshape(-1)
+            other_support = np.zeros(classes, dtype=bool)
+            for other in range(m):
+                if other != index:
+                    other_support |= (to_simplex(pis[other]) > ABSENT)
+            peer_oracle.append(renormalize(pred, other_support))
+            others_pi = [to_simplex(pis[other]) for other in range(m) if other != index]
+            peer_truth_pi.append(np.mean(others_pi, axis=0))
+        out[f"peer_{name}_prop_oracle_r2"] = proportions_r2(peer_truth_pi, peer_oracle)
         # Peer-sum: member j subtracts its own update, residual estimates the
         # MEAN update of the other members. The line predicts single-client-
         # scale counts, so the target is the mean (not the sum) of the other
@@ -205,7 +242,6 @@ def score_seed_sums(run_dir, targets, n_shadows=48, round_lo=ROUND_LO, round_hi=
         # that seed's per-class mean (a single row would make the baseline
         # degenerate). At N=2 the residual is exactly the other member's
         # update, so peer==individual by algebra.
-        m = len(clients)
         peer_truth = []
         peer_pred = []
         for index in range(m):
