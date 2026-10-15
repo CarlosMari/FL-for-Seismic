@@ -316,6 +316,18 @@ Support under balancing: bias AUC 0.95 at all three steps (TPR at 10% FPR 0.85 /
 
 Workstream B closes on classification: one balanced step per round hides counts, size, and fractions on all three datasets while bias/Decaf support stays near ceiling. The multi-step prediction fails everywhere — 2 and 5 balanced steps do not move counts back toward ordinary training. The cost is utility: balanced-5 local accuracy trails FedLC by 0.14 (Blood), 0.10 (OrganC), 0.18 (CIFAR-10). The support-vs-howmuch point for balanced-5 uses the row-size counts channel (its FedAvg control passes on all three datasets) against row-size support; the bias-support number (0.95–1.00) is reported alongside, not on the axis. Next: workstream C sums.
 
+## 2026-10-15, balanced-minibatch outcome (expert issue B)
+
+Table `results/tables/balanced_mb_howmuch.csv` (Blood, 5 seeds, 5 epochs class-balanced minibatches, log π at inference only). Go/no-go on counts: row +0.011 [−0.085,−0.000], decaf +0.076 [−0.009,+0.076], bias +0.039 — all at the floor, inside the full-batch intervals. Counts do NOT come back under realistic training. GO on the headline.
+
+Two qualifications, both new vs full-batch. (1) Dataset size leaks through the bias magnitude: size R² +0.446 [+0.308,+0.519] (full-batch: negative everywhere). Minibatch epochs do compute ∝ n (n/50 batches × 5), while full-batch steps are fixed compute — the update grows with the dataset. (2) Told the true support, fractions partially leak: oracle proportions R² +0.162 (decaf) / +0.144 (bias), intervals above 0 (full-batch: ≈0). Support stays high but softer: bias AUC 0.83 (was 0.99), decaf 0.90 (was 0.99), row 0.71 (was 0.51).
+
+Utility vindicates the budget-suspicion: local accuracy 0.930, level with FedLC (0.932) and far above full-batch balanced-5 (0.790). The "cost" was an optimization-budget artifact. Net: balanced minibatches hide exact counts at FedLC-level utility, but leak dataset size and partial fractions — "how much" is narrowed, not closed. The support-vs-howmuch point for balanced-mb uses the row counts channel; the bias-size leak is reported alongside.
+
+## 2026-10-15, λ-at-sum outcome (N=3, Blood)
+
+Table `results/tables/sums_lambda_blood.csv`, trend `sums_lambda_trend.csv` (Spearman over 3 λ points — direction only, coarse). Individual bias counts R²: −0.04 (λ=0) → +0.15 (λ=0.3) → +0.31 (λ=1); the bias channel opens with λ under the sum observer's victims too. Individual row counts flat: 0.49/0.47/0.45. Server-sum counts on the floor at all three λ (−0.03 to −0.02). Server-sum row presence declines with λ: 0.67 → 0.57 → 0.51 — FedLC's union signal fades as smoothing reopens the bias channel, and at λ=1 the sum reads nothing. Peer row counts flat at +0.39–0.42: at N=3 a peer reads the others' mean counts regardless of λ. The sums track personalization strength exactly as the individual observer does, compressed to the floor on counts.
+
 ## 2026-10-07, workstream C prediction
 
 Written before any sum code runs. Observer is server-sum (sees only the mean update of the round's members) or peer-sum (sees the sum and subtracts its own update). Setup: full participation, N in {2, 3, 5, 8}, α in {0.1, 0.5}, Blood first. The sum is simulated in plaintext from saved per-client updates; no crypto runs.
