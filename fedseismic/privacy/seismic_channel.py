@@ -94,45 +94,99 @@ def _presence_auc(truths, scores, threshold=ABSENT):
 def bn_site_auc(run_dir, last_round=20):
     """Same-site vs different-site AUC from BN running-mean vectors.
 
-    One observation per (round, site) from ``view/``. Cosine distance
-    between running-mean stacks; same-site pairs are positives. High AUC
-    means the uploaded statistics identify the site. Needs no labels.
+    Centered per (round, layer) across sites, z-scored per channel, then
+    pooled over all (round, site) pairs. Centering is essential: all sites
+    share a large common mean that saturates raw cosine near 1 (the naive
+    pooled metric sits at 0.56). Needs no labels. Returns overall, early
+    (rounds 1-10), late (11+), and first-encoder-layer AUCs plus pair count.
     """
-    vectors = {}
+    obs = {}
     for path in sorted((Path(run_dir) / "view").glob("round_*_client_*.npz")):
         with np.load(path) as handle:
             if "bn_keys" not in handle.files:
-                return float("nan"), 0
-            parts = []
-            for key in sorted(str(k) for k in handle["bn_keys"]):
+                continue
+            round_index = int(path.stem.split("_")[1])
+            client = int(path.stem.split("_")[-1])
+            layers = {}
+            for key in handle["bn_keys"]:
+                key = str(key)
                 if "running_mean" in key:
-                    parts.append(np.asarray(handle[f"bn::{key}"], dtype=np.float64).reshape(-1))
-        if not parts:
+                    layers[key.split(".running_mean")[0]] = np.asarray(
+                        handle[f"bn::{key}"], dtype=np.float64).reshape(-1)
+            if layers:
+                obs.setdefault(round_index, {})[client] = layers
+    if not obs:
+        return {"all": float("nan"), "early": float("nan"), "late": float("nan"),
+                "first": float("nan"), "pairs": 0}
+    layers = sorted(next(iter(next(iter(obs.values())).values())))
+    centered = {}
+    for round_index, clients in obs.items():
+        ordered = sorted(clients)
+        for layer in layers:
+            matrix = np.stack([clients[client][layer] for client in ordered])
+            mean, std = matrix.mean(axis=0), matrix.std(axis=0) + 1e-12
+            for pos, client in enumerate(ordered):
+                centered.setdefault(layer, {})[(round_index, client)] = (matrix[pos] - mean) / std
+
+    def auc_for(select):
+        labels, scores = [], []
+        for layer in layers:
+            items = [(key, vec) for key, vec in centered[layer].items() if select(key[0])]
+            for i in range(len(items)):
+                for j in range(i + 1, len(items)):
+                    same = 1 if items[i][0][1] == items[j][0][1] else 0
+                    left, right = items[i][1], items[j][1]
+                    denom = float(np.linalg.norm(left) * np.linalg.norm(right))
+                    cosine = float(np.dot(left, right) / denom) if denom > 1e-18 else 0.0
+                    labels.append(same)
+                    scores.append(cosine)
+        labels = np.asarray(labels)
+        if len(np.unique(labels)) < 2:
             return float("nan"), 0
-        round_index = int(path.stem.split("_")[1])
-        client = int(path.stem.split("_")[-1])
-        vectors.setdefault(client, []).append(np.concatenate(parts))
-    clients = sorted(vectors)
-    labels, scores = [], []
-    items = [(client, vec) for client in clients for vec in vectors[client]]
-    for i in range(len(items)):
-        for j in range(i + 1, len(items)):
-            same = 1 if items[i][0] == items[j][0] else 0
-            left, right = items[i][1], items[j][1]
+        return float(roc_auc_score(labels, np.asarray(scores))), len(labels)
+
+    all_auc, pairs = auc_for(lambda r: True)
+    early_auc, _ = auc_for(lambda r: r <= 10)
+    late_auc, _ = auc_for(lambda r: r > 10)
+    first_items = sorted(centered[layers[0]].items())
+    first_labels, first_scores = [], []
+    for i in range(len(first_items)):
+        for j in range(i + 1, len(first_items)):
+            first_labels.append(1 if first_items[i][0][1] == first_items[j][0][1] else 0)
+            left, right = first_items[i][1], first_items[j][1]
             denom = float(np.linalg.norm(left) * np.linalg.norm(right))
-            cosine = float(np.dot(left, right) / denom) if denom > 1e-18 else 0.0
-            labels.append(same)
-            scores.append(cosine)
-    labels = np.asarray(labels)
-    if len(np.unique(labels)) < 2:
-        return float("nan"), len(labels)
-    return float(roc_auc_score(labels, np.asarray(scores))), len(labels)
+            first_scores.append(float(np.dot(left, right) / denom) if denom > 1e-18 else 0.0)
+    first_auc = float(roc_auc_score(first_labels, np.asarray(first_scores)))
+    return {"all": all_auc, "early": early_auc, "late": late_auc,
+            "first": first_auc, "pairs": pairs}
+
+
+def _within_pearson(log_counts, scores):
+    """Mean per-class Pearson after centering each class across sites.
+
+    The pooled Pearson is dominated by class identity (big classes are big
+    everywhere). Centering removes that and asks whether sites with more of
+    class k show larger updates for k.
+    """
+    from scipy.stats import pearsonr
+
+    values = []
+    for k in range(log_counts.shape[1]):
+        x, y = log_counts[:, k], np.asarray(scores)[:, k]
+        if np.std(x) < 1e-12 or np.std(y) < 1e-12:
+            continue
+        coef = pearsonr(x - x.mean(), y - y.mean()).statistic
+        if np.isfinite(coef):
+            values.append(float(coef))
+    if not values:
+        return float("nan")
+    return float(np.mean(values))
 
 
 def score_job(job_dir):
     """Hand-built channels per seed, pooled over sites."""
     counts_all, rows_all, bias_all, pis_all = [], [], [], []
-    bn_aucs = []
+    bn_all, bn_early, bn_late, bn_first, bn_pairs = [], [], [], [], []
     for run in sorted(Path(job_dir).glob("seed_*")):
         if not (run / "results.json").is_file():
             continue
@@ -144,8 +198,12 @@ def score_job(job_dir):
         rows_all.append(np.stack([rows[c] for c in clients]))
         bias_all.append(np.stack([biases[c] for c in clients]))
         pis_all.append(np.stack([to_simplex(histograms[c]) for c in clients]))
-        auc, _ = bn_site_auc(run)
-        bn_aucs.append(auc)
+        scored = bn_site_auc(run)
+        bn_all.append(scored["all"])
+        bn_early.append(scored["early"])
+        bn_late.append(scored["late"])
+        bn_first.append(scored["first"])
+        bn_pairs.append(scored["pairs"])
     counts_all = np.concatenate(counts_all)
     rows_all = np.concatenate(rows_all)
     bias_all = np.concatenate(bias_all)
@@ -154,12 +212,21 @@ def score_job(job_dir):
     # mechanism is multiplicative in n_k; raw-count Pearson would be
     # dominated by the biggest class.
     log_counts = np.log10(np.maximum(counts_all, 1.0))
+    present = (pis_all > ABSENT).astype(int)
     return {
         "row_logcount_pearson": _pearson(log_counts, rows_all),
         "bias_logcount_pearson": _pearson(log_counts, bias_all),
+        "row_within_pearson": _within_pearson(log_counts, rows_all),
+        "bias_within_pearson": _within_pearson(log_counts, bias_all),
         "row_presence_auc": _presence_auc(pis_all, rows_all),
         "bias_presence_auc": _presence_auc(pis_all, bias_all),
-        "bn_site_auc": float(np.nanmean(bn_aucs)) if bn_aucs else float("nan"),
+        "presence_pos": int(present.sum()),
+        "presence_neg": int((1 - present).sum()),
+        "bn_site_auc": float(np.nanmean(bn_all)) if bn_all else float("nan"),
+        "bn_site_early": float(np.nanmean(bn_early)) if bn_early else float("nan"),
+        "bn_site_late": float(np.nanmean(bn_late)) if bn_late else float("nan"),
+        "bn_site_first": float(np.nanmean(bn_first)) if bn_first else float("nan"),
+        "bn_pairs": int(np.sum(bn_pairs)),
         "n_clients": int(counts_all.shape[0]),
     }
 
