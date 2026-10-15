@@ -246,12 +246,20 @@ def main():
         scored = score_job(job)
         meta = load_meta(sorted(job.glob("seed_*"))[0])
         cfg = RunConfig.from_mapping(meta["config"])
-        utility = json.loads((sorted(job.glob("seed_*"))[0] / "results.json").read_text())
         locals_mean, globals_mean = [], []
         for run in sorted(job.glob("seed_*")):
             um = json.loads((run / "results.json").read_text())
-            locals_mean.append(um["local_mean"])
             globals_mean.append(um["final"])
+            # results.json local_mean on these runs is pixel accuracy (the
+            # end-of-run scorer predates the task-metric fix); the per-round
+            # history holds macro mIoU, so the local number comes from there.
+            local_rounds = [
+                json.loads(line)["local_mean"]
+                for line in (run / "history.jsonl").read_text().splitlines()
+                if "local_mean" in line
+            ]
+            local_rounds = [v for v in local_rounds if v is not None]
+            locals_mean.append(local_rounds[-1] if local_rounds else float("nan"))
         rows.append({
             "job": job.name,
             "algorithm": cfg.algorithm,

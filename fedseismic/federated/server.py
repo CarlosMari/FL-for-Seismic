@@ -356,7 +356,14 @@ class Server:
         })
 
     def evaluate_personalized_local(self):
-        """Score every client that has trained, using its deployed local weights."""
+        """Score every client that has trained, using its deployed local weights.
+
+        Uses the task metric (accuracy for classification, macro mIoU for
+        segmentation) unless a log prior is applied, which only the
+        classification path supports. Previously this always used example
+        accuracy, which on segmentation equals pixel accuracy and reads far
+        above mIoU on imbalanced facies.
+        """
         scores = []
         for client, trainer in self._client_trainers.items():
             if client >= len(self.client_test_loaders):
@@ -374,7 +381,13 @@ class Server:
             if use_prior and self.client_info is not None:
                 pi = np.asarray(self.client_info[client]["class_fracs"], dtype=np.float64)
                 log_prior = np.log(np.clip(pi, 1e-8, None))
-            scores.append(_accuracy(model, loader, self.device, log_prior))
+            if log_prior is not None:
+                scores.append(_accuracy(model, loader, self.device, log_prior))
+            else:
+                scores.append(score_loader(
+                    model, loader, self.config.num_classes, self.device,
+                    self.config.task,
+                )[0])
         if not scores:
             return None, None
         return float(np.mean(scores)), float(np.min(scores))
