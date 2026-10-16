@@ -404,6 +404,12 @@ Strict FedBN (BN keys stripped from the upload) needs no retrain: our FedBN aggr
 
 GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN affine weights top-1 0.97 FedAvg / 1.00 FedBN vs 0.33 chance; full-update sketch 0.93–0.98. Sites stay identifiable without statistics — learned normalization weights absorb site properties too. So BN statistics are sufficient but not necessary for site linkability; the consortium warning covers normalization weights generally. (The outc-bias NN check is meaningless — view files carry the reconstruct head; outc exists for round 20 only.)
 
+## 2026-10-16, fixed-steps verdict (expert item 1 closed)
+
+Table `results/tables/balanced_steps_howmuch.csv` (Blood, T=35/165 steps/round fixed regardless of n). Counts at the floor at BOTH budgets on all channels (t35: −0.02/+0.04/+0.04; t165: +0.00/+0.07/+0.05, intervals covering the floor). Step count does not explain the CIFAR leak — dataset does. Size sits on the floor at both budgets (t165 bias +0.024, t35 −0.262): fixing compute removes the size leak by construction, confirming its mechanism. Oracle fractions partially leak at the high budget only (t165 decaf/bias +0.14/+0.13 above floor; t35 ≈ 0): more steps refine within-support fractions without restoring counts. Support stays high (0.63–0.91); utility 0.90/0.93.
+
+Headline 3 as decided: balanced minibatches hide exact counts at FedLC-level utility on all datasets tested; dataset size leaks unless steps are fixed (then it doesn't); fractions leak partially at high step budgets; CIFAR counts leak regardless (dataset, not steps). The rare-memorization sentence covers OrganC/CIFAR residual leaks.
+
 ## 2026-10-16, balanced-minibatch on CIFAR-10 (tiebreak: Blood wins, OrganC partial, CIFAR leaks)
 
 Table `results/tables/balanced_mb_cifar_howmuch.csv` (3 seeds). Counts R² on ALL channels: row +0.196 [+0.119,+0.191], Decaf +0.355 [+0.283,+0.369], bias +0.201 — well above the floor. Size +0.782 via bias. Oracle/estimated fractions +0.21–0.36. Support 0.91–0.99. Utility 0.880.
