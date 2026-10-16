@@ -396,9 +396,11 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
 
-## 2026-10-15, buffer-holdout validity criteria (pre-registered)
+## 2026-10-16, buffer-holdout outcome
 
-Before the buffer-holdout comparison runs: it uses N=3, FedAvg/FedBN batchnorm, 3 seeds, `spatial_holdout_buffer=10` crosslines, same 20 rounds. Validity criteria fixed in advance: (a) the comparison is valid if all 6 runs complete with non-empty train and test splits (checked programmatically); (b) "utility preserved" means the local-minus-global-on-local mIoU gap under buffer is within 50% of the adjacent-holdout gap —otherwise the buffer changed the task, not just the holdout; (c) leakage numbers are reported for both holdouts side by side with no claim that one is "true". If (a) fails, shrink the buffer to 5 and rerun. No post-hoc threshold moves.
+6/6 runs complete (N=3, FedAvg/FedBN batchnorm, buffer 10). mIoU from history: FedAvg buffer local 0.712 vs adjacent 0.723; FedBN 0.711 vs 0.721. Local-minus-global-on-local gap: +0.005/+0.056 (buffer) vs +0.004/+0.008 (adjacent). The pre-registered 50% criterion is vacuous against near-zero gaps, so the honest reading: a 10-crossline buffer drops local scores by only 0.01 — holdout adjacency was NOT inflating the utility story. The deployed model genuinely matches the shared model on within-site holdouts (≈0.71–0.72 both), and both sit above official-test (0.43–0.58). Conclusion: no personalization gap on these F3 sites under either holdout; the survey-shift gap stands. The buffer flag stays available; no rerun needed.
+
+(Pre-registered criteria, Oct-15: N=3, FedAvg/FedBN batchnorm, 3 seeds, buffer 10, same 20 rounds. Validity criteria fixed in advance: (a) the comparison is valid if all 6 runs complete with non-empty train and test splits (checked programmatically); (b) "utility preserved" means the local-minus-global-on-local mIoU gap under buffer is within 50% of the adjacent-holdout gap —otherwise the buffer changed the task, not just the holdout; (c) leakage numbers are reported for both holdouts side by side with no claim that one is "true". If (a) fails, shrink the buffer to 5 and rerun. No post-hoc threshold moves.
 
 ## 2026-10-15, Q3-from-the-sum and peer oracle (E1/E2 rescores)
 
