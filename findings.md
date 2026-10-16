@@ -396,6 +396,12 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
 
+## 2026-10-16, balanced-minibatch on OrganC (replication)
+
+Table `results/tables/balanced_mb_organc_howmuch.csv` (3 seeds). Counts: Decaf +0.166 [+0.092,+0.197] (above floor), row +0.072 [+0.006,+0.073] (barely above), bias +0.068 (covers). Unlike Blood (all at floor), OrganC leaks counts partially through Decaf's positive-sum — about 17% of count variance. Size leaks harder than Blood via bias: +0.674 [+0.428,+0.788] vs +0.446. Oracle/estimated fractions: Decaf +0.150/+0.148, both above floor (Blood: oracle partial only for bias/Decaf at +0.14–0.16, estimated at floor). Support: decaf 0.92, bias 0.79, row 0.77. Utility 0.939, level with FedLC-OrganC (0.935).
+
+Net vs Blood: same shape (support high, size leaks via bias, utility at FedLC level) but Decaf counts and estimated fractions stay above the floor on OrganC. The headline softens to "counts at or near the floor (Blood) to partial (OrganC Decaf 0.17)". CIFAR-10 minibatch runs next as the tiebreak.
+
 ## 2026-10-16, seismic shadow calibration: negative (pilot closed)
 
 12-shadow pilot, N=5 FedAvg batchnorm seed 0, single 5-epoch updates from the round-20 received model with the victim's exact loss/optimizer. First attempt (random-boundary contiguous chunks) was misdesigned: shadows varied in size (5.5–41 Mpix) while victims are equal-size (11.5 Mpix) — the line learned size→update mapping the victims don't have. Rerun with fixed-size (112-line) Dirichlet-mix chunks: RidgeCV saturates near max penalty (α=1000 row, 30 bias), calibrated counts R² −0.004/+0.044, Spearman +0.93/+0.98 (class-identity dominated, as established). No transferable count slope: the hand-built within-class Pearson stands as uncalibrated, and no exact-count claim transfers on F3. No expansion — pilot closed per the pre-registered rule. Shadows live under `results/attacks/seismic_shadows/` (gitignored).
