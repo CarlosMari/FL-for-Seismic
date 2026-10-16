@@ -381,18 +381,20 @@ Interpretable cells (N=5,8) replicate α=0.1 exactly. Server-sum counts on the f
 
 BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes the floor; "≈floor" = interval covers it; "partial" = above floor but well below the individual observer.
 
-| Observer | Method | Counts R² | Size | Support (AUC) | Fractions | Source |
+| Observer | Method | Counts R² | Size | Support (AUC) | Fractions | Utility (local) | Source |
 |---|---|---|---|---|---|---|
-| Individual | FedAvg | yes 0.17–0.33 | no | yes 0.82–0.93 | yes | howmuch.csv |
-| Individual | FedLC | yes 0.21–0.40 | no | yes 0.98–1.00 | partial (oracle 0.10–0.39) | howmuch.csv |
-| Individual | Balanced-1-step | ≈floor | no | yes 0.99 (bias/Decaf) / ≈floor (row) | ≈floor | balanced_*.csv |
-| Individual | Balanced-minibatch | ≈floor | **yes 0.45 (bias)** | yes 0.83–0.90 | partial (oracle 0.14–0.16) | balanced_mb_howmuch.csv |
-| Server-sum N=2–8 | FedAvg | ≈floor | — | ≈floor 0.51–0.57 | — | sums_blood_a01.csv |
-| Server-sum N=2–8 | FedLC | ≈floor | — | **yes 0.62–0.67 (row)** | — | sums_blood_a01.csv |
-| Peer-sum N=2–3 | FedAvg | yes (N=2 =indiv; N=3 partial) | — | yes 0.92–1.00 | partial (oracle, N≤3) | sums_blood_a01.csv |
-| Peer-sum N≥5 | either | ≈floor | — | yes (union) | no | sums_blood_a01.csv |
-| Fingerprint (10c, 3/r) | FedAvg / FedLC | — | — | cohort 0.85 / 0.99 (row) | — | fingerprint_blood.csv |
-| Seismic (N=3–5, last round) | FedAvg / FedBN | bias-w Pearson +0.4–0.6 | — | bias 0.90–0.99 (6–9 c5 pairs) | — | seismic_f3.csv |
+| Individual | FedAvg | yes 0.17–0.33 | no¹ | yes 0.82–0.93 | yes | — | howmuch.csv |
+| Individual | FedLC | yes 0.21–0.40 | no¹ | yes 0.98–1.00 | partial (oracle 0.10–0.39) | 0.93 Blood | howmuch.csv |
+| Individual | Balanced-1-step | ≈floor | no¹ | yes 0.99 (bias/Decaf) / ≈floor (row) | ≈floor | 0.69–0.79 | balanced_*.csv |
+| Individual | Balanced-minibatch | ≈floor (Blood) / partial 0.17 (OrganC Decaf) | **yes 0.45–0.67 (bias)** | yes 0.77–0.92 | partial (oracle 0.14–0.16) | 0.93 Blood / 0.94 OrganC | balanced_mb_*.csv |
+| Server-sum N=2–8 | FedAvg | ≈floor | — | ≈floor 0.51–0.57 | — | — | sums_blood_a01.csv |
+| Server-sum N=2–8 | FedLC | ≈floor | — | **yes 0.62–0.67 (row)** | — | — | sums_blood_a01.csv |
+| Peer-sum N=2–3 | FedAvg | yes (N=2 =indiv; N=3 partial) | — | yes 0.92–1.00 | partial (oracle, N≤3) | — | sums_blood_a01.csv |
+| Peer-sum N≥5 | either | ≈floor | — | yes (union) | no | — | sums_blood_a01.csv |
+| Fingerprint (10c, 3/r) | FedAvg / FedLC | — | — | cohort 0.85 / 0.99 (row) | — | — | fingerprint_blood.csv |
+| Seismic (N=3–5, last round) | FedAvg / FedBN | bias-w Pearson +0.4–0.6; calibrated ≤+0.13 | — | bias bal-acc 0.76/0.90; BN top-1 0.98/0.94 | — | 0.72–0.75 (mIoU) | seismic_f3.csv |
+
+¹ FedAvg's "Size: no" is update-magnitude only — standard FedAvg sends n_i as the aggregation weight, so size leaks through the protocol unless weights go inside the secure sum.
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
 
