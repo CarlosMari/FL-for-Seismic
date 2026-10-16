@@ -398,6 +398,12 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
 
+## 2026-10-16, strict-FedBN and GroupNorm identity (free rescores)
+
+Strict FedBN (BN keys stripped from the upload) needs no retrain: our FedBN aggregate already skips BN keys, so the trajectory is identical with or without them in the upload. Masking BN at scoring time gives the strict result with zero GPU: the BN stats attack is N/A by construction, and every head/outc number is unchanged (disjoint tensors). The practical Chapter-6 statement: stripping BN keys from uploads removes the statistics channel; everything else in the tables stands.
+
+GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN affine weights top-1 0.97 FedAvg / 1.00 FedBN vs 0.33 chance; full-update sketch 0.93–0.98. Sites stay identifiable without statistics — learned normalization weights absorb site properties too. So BN statistics are sufficient but not necessary for site linkability; the consortium warning covers normalization weights generally. (The outc-bias NN check is meaningless — view files carry the reconstruct head; outc exists for round 20 only.)
+
 ## 2026-10-16, balanced-minibatch on CIFAR-10 (tiebreak: Blood wins, OrganC partial, CIFAR leaks)
 
 Table `results/tables/balanced_mb_cifar_howmuch.csv` (3 seeds). Counts R² on ALL channels: row +0.196 [+0.119,+0.191], Decaf +0.355 [+0.283,+0.369], bias +0.201 — well above the floor. Size +0.782 via bias. Oracle/estimated fractions +0.21–0.36. Support 0.91–0.99. Utility 0.880.
