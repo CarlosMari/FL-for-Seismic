@@ -396,6 +396,10 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
 
+## 2026-10-16, seismic shadow calibration: negative (pilot closed)
+
+12-shadow pilot, N=5 FedAvg batchnorm seed 0, single 5-epoch updates from the round-20 received model with the victim's exact loss/optimizer. First attempt (random-boundary contiguous chunks) was misdesigned: shadows varied in size (5.5–41 Mpix) while victims are equal-size (11.5 Mpix) — the line learned size→update mapping the victims don't have. Rerun with fixed-size (112-line) Dirichlet-mix chunks: RidgeCV saturates near max penalty (α=1000 row, 30 bias), calibrated counts R² −0.004/+0.044, Spearman +0.93/+0.98 (class-identity dominated, as established). No transferable count slope: the hand-built within-class Pearson stands as uncalibrated, and no exact-count claim transfers on F3. No expansion — pilot closed per the pre-registered rule. Shadows live under `results/attacks/seismic_shadows/` (gitignored).
+
 ## 2026-10-16, buffer-holdout outcome
 
 6/6 runs complete (N=3, FedAvg/FedBN batchnorm, buffer 10). mIoU from history: FedAvg buffer local 0.712 vs adjacent 0.723; FedBN 0.711 vs 0.721. Local-minus-global-on-local gap: +0.005/+0.056 (buffer) vs +0.004/+0.008 (adjacent). The pre-registered 50% criterion is vacuous against near-zero gaps, so the honest reading: a 10-crossline buffer drops local scores by only 0.01 — holdout adjacency was NOT inflating the utility story. The deployed model genuinely matches the shared model on within-site holdouts (≈0.71–0.72 both), and both sit above official-test (0.43–0.58). Conclusion: no personalization gap on these F3 sites under either holdout; the survey-shift gap stands. The buffer flag stays available; no rerun needed.
