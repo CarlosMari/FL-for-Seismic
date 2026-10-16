@@ -386,7 +386,7 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 | Individual | FedAvg | yes 0.17–0.33 | no¹ | yes 0.82–0.93 | yes | — | howmuch.csv |
 | Individual | FedLC | yes 0.21–0.40 | no¹ | yes 0.98–1.00 | partial (oracle 0.10–0.39) | 0.93 Blood | howmuch.csv |
 | Individual | Balanced-1-step | ≈floor | no¹ | yes 0.99 (bias/Decaf) / ≈floor (row) | ≈floor | 0.69–0.79 | balanced_*.csv |
-| Individual | Balanced-minibatch | ≈floor (Blood) / partial 0.17 (OrganC Decaf) | **yes 0.45–0.67 (bias)** | yes 0.77–0.92 | partial (oracle 0.14–0.16) | 0.93 Blood / 0.94 OrganC | balanced_mb_*.csv |
+| Individual | Balanced-minibatch | ≈floor Blood / partial 0.17 OrganC / leaks 0.20–0.36 CIFAR | **yes 0.45–0.78 (bias)** | yes 0.77–0.99 | partial–yes (oracle/est. 0.14–0.36) | 0.93 / 0.94 / 0.88 | balanced_mb_*.csv |
 | Server-sum N=2–8 | FedAvg | ≈floor | — | ≈floor 0.51–0.57 | — | — | sums_blood_a01.csv |
 | Server-sum N=2–8 | FedLC | ≈floor | — | **yes 0.62–0.67 (row)** | — | — | sums_blood_a01.csv |
 | Peer-sum N=2–3 | FedAvg | yes (N=2 =indiv; N=3 partial) | — | yes 0.92–1.00 | partial (oracle, N≤3) | — | sums_blood_a01.csv |
@@ -397,6 +397,12 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 ¹ FedAvg's "Size: no" is update-magnitude only — standard FedAvg sends n_i as the aggregation weight, so size leaks through the protocol unless weights go inside the secure sum.
 
 Wording audit: "floor" = per-class-mean R² 0, population-mix presence AUC, or 0.5 pairwise AUC as the metric defines; "closed/hides" = interval covers the floor; "survives/leaks" = interval excludes it; "partial" = excludes the floor but below half the individual-observer level. No "below the floor" anywhere.
+
+## 2026-10-16, balanced-minibatch on CIFAR-10 (tiebreak: Blood wins, OrganC partial, CIFAR leaks)
+
+Table `results/tables/balanced_mb_cifar_howmuch.csv` (3 seeds). Counts R² on ALL channels: row +0.196 [+0.119,+0.191], Decaf +0.355 [+0.283,+0.369], bias +0.201 — well above the floor. Size +0.782 via bias. Oracle/estimated fractions +0.21–0.36. Support 0.91–0.99. Utility 0.880.
+
+Dataset gradient across the three minibatch grids: Blood counts at floor → OrganC Decaf partial 0.17 → CIFAR 0.20–0.36 on every channel. It tracks local compute per round: CIFAR clients average 1670 examples (≈33 balanced batches × 5 epochs ≈ 165 steps), Blood ≈340 (≈7 × 5 = 35 steps). The more steps between the balanced ideal and the upload, the more count information returns through update magnitudes — the same mechanism as the size leak. The B-minibatch headline is now per-dataset: hides counts where clients are small, leaks where they are large. The fixed-steps-per-round variant (compute independent of n) is the direct test and goes next on the minibatch line.
 
 ## 2026-10-16, balanced-minibatch on OrganC (replication)
 
