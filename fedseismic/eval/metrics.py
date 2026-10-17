@@ -9,6 +9,22 @@ def _logits(output):
     return output[0] if isinstance(output, (tuple, list)) else output
 
 
+def _present_mean(per_class, y_true, num_classes):
+    """Mean IoU over the facies present in the ground truth.
+
+    A facies missing from the holdout scores nothing instead of zero: with
+    ``zero_division=0`` an absent class would otherwise drag the mean down
+    (e.g. c5-free sites penalized, or 12-class heads capped near 0.5 on
+    6-class tests). Returns 0.0 when the ground truth is empty.
+    """
+    per_class = np.asarray(per_class, dtype=np.float64)
+    present = np.bincount(
+        np.asarray(y_true).reshape(-1).astype(int), minlength=num_classes) > 0
+    if not present.any():
+        return 0.0
+    return float(np.mean(per_class[:len(present)][present]))
+
+
 def evaluate(model, loader, labels, device="cpu"):
     """Return ``(macro_miou, per_class_iou)`` for an ordered seismic loader."""
     model.eval()
@@ -27,7 +43,7 @@ def evaluate(model, loader, labels, device="cpu"):
         labels.flatten(), prediction.flatten(), labels=list(range(num_classes)),
         average=None, zero_division=0,
     )
-    return float(per_class.mean()), np.asarray(per_class)
+    return _present_mean(per_class, labels.flatten(), num_classes), np.asarray(per_class)
 
 
 def evaluate_loader(model, loader, num_classes, device="cpu"):
@@ -54,7 +70,7 @@ def evaluate_loader(model, loader, num_classes, device="cpu"):
         y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0,
     )
     pixel_acc = float((y_pred == y_true).mean()) if y_true.size else 0.0
-    return float(np.mean(per_class)), np.asarray(per_class), pixel_acc
+    return _present_mean(per_class, y_true, num_classes), np.asarray(per_class), pixel_acc
 
 
 def score_loader(model, loader, num_classes, device="cpu", task="segmentation"):

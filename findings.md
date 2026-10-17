@@ -392,7 +392,7 @@ BloodMNIST unless noted; 95% CIs in the cited tables. "Yes" = interval excludes 
 | Peer-sum N=2–3 | FedAvg | yes (N=2 =indiv; N=3 partial) | — | yes 0.92–1.00 | partial (oracle, N≤3) | — | sums_blood_a01.csv |
 | Peer-sum N≥5 | either | ≈floor | — | yes (union) | no | — | sums_blood_a01.csv |
 | Fingerprint (10c, 3/r) | FedAvg / FedLC | — | — | cohort 0.85 / 0.99 (row) | — | — | fingerprint_blood.csv |
-| Seismic (N=3–5, last round) | FedAvg / FedBN | bias-w Pearson +0.4–0.6; calibrated ≤+0.13 | — | bias bal-acc 0.76/0.90; BN top-1 0.98/0.94 | — | 0.72–0.75 (mIoU) | seismic_f3.csv |
+| Seismic (N=3–5, last round) | FedAvg / FedBN | bias-w Pearson +0.4–0.6; calibrated ≤+0.13 | — | bias bal-acc 0.76/0.90; BN top-1 0.98/0.94 | — | 0.82–0.91 (mIoU, present-class) | seismic_f3.csv |
 
 ¹ FedAvg's "Size: no" is update-magnitude only — standard FedAvg sends n_i as the aggregation weight, so size leaks through the protocol unless weights go inside the secure sum.
 
@@ -482,7 +482,7 @@ What stands: bias reads presence (last round, 6–9 c5 negative pairs) and withi
 
 ## 2026-10-15, the 0.98 was pixel accuracy, not mIoU (user catch)
 
-`evaluate_personalized_local` scored every client with `_accuracy` (example accuracy), which on segmentation equals pixel accuracy. On imbalanced facies that reads ~0.98 while macro mIoU sits at 0.72–0.75 (recomputed from saved states on N=3 batchnorm: train 0.82–0.95, holdout 0.66–0.81, c5 IoU 0.0 everywhere). Per-round history always held mIoU (0.73 at round 20); only the end-of-run `results.json`/`run_meta.json` local fields carry the wrong metric, because `server.run()` overwrites them from the end scorer. Fixed in code (task metric unless a log prior is applied; classification behavior identical), regression test added (`test_personalized_metric`: majority model scores <0.7 mIoU), `seismic_f3.csv` local column recomputed from history. Corrected utility: local mIoU 0.72–0.75, global 0.43–0.58, global-on-local ≈0.71. The deployed model barely beats the shared model on client holdouts — the large drop is official-test survey shift, not personalization. The buffer-holdout comparison still runs, now against a smaller claimed gap.
+`evaluate_personalized_local` scored every client with `_accuracy` (example accuracy), which on segmentation equals pixel accuracy. On imbalanced facies that reads ~0.98 while macro mIoU sits at 0.72–0.75 (recomputed from saved states on N=3 batchnorm: train 0.82–0.95, holdout 0.66–0.81, c5 IoU 0.0 everywhere). Per-round history always held mIoU (0.73 at round 20); only the end-of-run `results.json`/`run_meta.json` local fields carry the wrong metric, because `server.run()` overwrites them from the end scorer. Fixed in code (task metric unless a log prior is applied; classification behavior identical), regression test added (`test_personalized_metric`: majority model scores <0.7 mIoU), `seismic_f3.csv` local column recomputed from history. Corrected utility (present-class mIoU re-evaluated from saved weights): local 0.82–0.91, global-on-local 0.80–0.87, global (official test, all facies present so the fix changes nothing) 0.43–0.58. The local-vs-shared gap on holdouts is ≈0.00–0.04 — no personalization gap at all under the corrected metric (the earlier 0.72–0.75 used the all-class mean). The only gap is official-test survey shift. Buffer comparison stands as run (its numbers use the same history metric on both arms, so the 0.01 conclusion is unaffected).
 
 ## 2026-10-14, seismic timing run
 

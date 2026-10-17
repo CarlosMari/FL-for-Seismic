@@ -231,6 +231,59 @@ def score_job(job_dir):
     }
 
 
+def rescore_utility(run_dir, device="cpu"):
+    """Corrected local/global mIoU from saved weights (present-class mean).
+
+    Per-round history values predate the metric fix, so this re-evaluates
+    the final deployed locals and the final global on the client holdouts.
+    Returns (local_mean, local_worst, global_on_local).
+    """
+    import torch
+
+    from fedseismic.config import RunConfig, resolve_device
+    from fedseismic.eval.metrics import score_loader
+    from fedseismic.experiment import build_federated_run
+    from fedseismic.models import UNet
+    from fedseismic.privacy.log import (
+        _load_checkpoint, load_global_state, load_local_states, load_meta,
+    )
+
+    device = resolve_device(device)
+    run_dir = Path(run_dir)
+    meta = load_meta(run_dir)
+    cfg = RunConfig.from_mapping(meta["config"])
+    seed = int(meta.get("seed", cfg.seed))
+    data = build_federated_run(cfg, seed)
+    states = load_local_states(run_dir)
+    local_scores = []
+    for client, state in sorted(states.items()):
+        if client >= len(data.client_tests):
+            continue
+        loader = data.client_tests[client]
+        if loader is None or not len(loader.dataset):
+            continue
+        model = UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm,
+                     groups=cfg.norm_groups)
+        model.load_state_dict(state)
+        local_scores.append(score_loader(
+            model, loader, cfg.num_classes, device, cfg.task)[0])
+    global_state = load_global_state(run_dir)
+    global_scores = []
+    if global_state is not None:
+        model = UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm,
+                     groups=cfg.norm_groups)
+        model.load_state_dict(global_state)
+        for loader in data.client_tests:
+            if loader is None or not len(loader.dataset):
+                continue
+            global_scores.append(score_loader(
+                model, loader, cfg.num_classes, device, cfg.task)[0])
+    local_mean = float(np.mean(local_scores)) if local_scores else float("nan")
+    return local_mean, (
+        float(np.min(local_scores)) if local_scores else float("nan")), (
+        float(np.mean(global_scores)) if global_scores else float("nan"))
+
+
 def main():
     import pandas as pd
 
@@ -246,27 +299,24 @@ def main():
         scored = score_job(job)
         meta = load_meta(sorted(job.glob("seed_*"))[0])
         cfg = RunConfig.from_mapping(meta["config"])
-        locals_mean, globals_mean = [], []
+        locals_mean, globals_mean, gols = [], [], []
         for run in sorted(job.glob("seed_*")):
             um = json.loads((run / "results.json").read_text())
             globals_mean.append(um["final"])
-            # results.json local_mean on these runs is pixel accuracy (the
-            # end-of-run scorer predates the task-metric fix); the per-round
-            # history holds macro mIoU, so the local number comes from there.
-            local_rounds = [
-                json.loads(line)["local_mean"]
-                for line in (run / "history.jsonl").read_text().splitlines()
-                if "local_mean" in line
-            ]
-            local_rounds = [v for v in local_rounds if v is not None]
-            locals_mean.append(local_rounds[-1] if local_rounds else float("nan"))
+            # results.json local_mean on these runs is pixel accuracy and the
+            # history holds the old all-class mIoU: re-evaluate from the
+            # saved weights with the present-class metric instead.
+            local_mean, _worst, global_on_local = rescore_utility(run)
+            locals_mean.append(local_mean)
+            gols.append(global_on_local)
         rows.append({
             "job": job.name,
             "algorithm": cfg.algorithm,
             "norm": cfg.norm,
             "n_sites": int(cfg.num_clients),
-            "local_miou": float(np.mean(locals_mean)),
-            "global_miou": float(np.mean(globals_mean)),
+            "local_miou": float(np.nanmean(locals_mean)),
+            "global_miou": float(np.nanmean(globals_mean)),
+            "global_on_local": float(np.nanmean(gols)),
             **scored,
         })
         print(" ", {k: (round(v, 3) if isinstance(v, float) else v) for k, v in scored.items()}, flush=True)
