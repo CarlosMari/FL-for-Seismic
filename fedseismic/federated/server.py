@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import warnings
 
 import numpy as np
 import torch
@@ -139,6 +140,8 @@ class Server:
             if getattr(self.config, "local_steps", None):
                 kwargs["local_steps"] = int(self.config.local_steps)
                 kwargs["gradient_balance"] = self.config.gradient_balance
+            if factory is MinibatchBalancedTrainer and getattr(self.config, "balanced_steps", None):
+                kwargs["max_steps"] = int(self.config.balanced_steps)
             self._client_trainers[client] = factory(**kwargs)
         return self._client_trainers[client]
 
@@ -289,7 +292,17 @@ class Server:
                     record.miou_test2 = score
                 per_class_values.append(per_class)
             if per_class_values:
-                record.per_class_iou = np.mean(per_class_values, axis=0).tolist()
+                # Test sets can carry different class subsets (e.g. F3-only
+                # official tests under a 12-class union head); pad with nan
+                # so the mean stays per-class aligned.
+                width = max(len(np.asarray(v).reshape(-1)) for v in per_class_values)
+                stacked = np.full((len(per_class_values), width), np.nan)
+                for i, v in enumerate(per_class_values):
+                    flat = np.asarray(v, dtype=np.float64).reshape(-1)
+                    stacked[i, :len(flat)] = flat
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    record.per_class_iou = np.nanmean(stacked, axis=0).tolist()
             values = [value for value in (record.miou_test1, record.miou_test2)
                       if value is not None]
             record.miou_final = float(np.mean(values)) if values else None

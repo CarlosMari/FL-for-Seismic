@@ -90,6 +90,7 @@ class RunConfig:
     fedkper_diversity: str = "infer"
     local_test_ratio: float = 0.2
     spatial_holdout_buffer: int = 0
+    balanced_steps: int | None = None
     privacy_delta_dim: int | None = 4096
     privacy_probe_batches: int | None = 8
     privacy_log_last_only: bool = False
@@ -116,6 +117,11 @@ class RunConfig:
     train_labels: str | None = None
     test1_seismic: str | None = None
     test1_labels: str | None = None
+    multisurvey: bool = False
+    survey_b_seismic: str | None = None
+    survey_b_labels: str | None = None
+    survey_b_offset: int = 6
+    survey_solo: str | None = None
     test2_seismic: str | None = None
     test2_labels: str | None = None
     validation_seismic: str | None = None
@@ -145,6 +151,8 @@ class RunConfig:
             raise ValueError("local_test_ratio must be in [0, 1)")
         if int(self.spatial_holdout_buffer) < 0:
             raise ValueError("spatial_holdout_buffer must be non-negative")
+        if self.balanced_steps is not None and int(self.balanced_steps) < 1:
+            raise ValueError("balanced_steps must be positive")
         self.optimizer = str(self.optimizer).strip().lower()
         if self.optimizer not in {"adamw", "sgd"}:
             raise ValueError("optimizer must be 'adamw' or 'sgd'")

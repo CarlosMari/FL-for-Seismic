@@ -158,6 +158,21 @@ def _required_paths(cfg):
     paths = [cfg.train_seismic, cfg.train_labels]
     if any(path is None for path in paths):
         raise ValueError("train_seismic and train_labels are required for a seismic run")
+    if bool(getattr(cfg, "multisurvey", False)):
+        missing = [cfg.survey_b_seismic, cfg.survey_b_labels]
+        if any(path is None for path in missing):
+            raise ValueError("survey_b_seismic and survey_b_labels are required for a multisurvey run")
+
+
+def _load_cube_pair(seismic_path, labels_path):
+    """Load a survey cube pair. Supports F3-style .npy pairs and the
+    Parihaka .npz release (keys ``data``/``labels``, classes 1-6)."""
+    if str(seismic_path).endswith(".npz"):
+        seismic = np.load(seismic_path)["data"]
+        labels = np.load(labels_path)["labels"]
+        seismic = (seismic - seismic.min()) / (seismic.max() - seismic.min() + 1e-8)
+        return np.asarray(seismic, dtype=np.float64), np.asarray(labels).reshape(seismic.shape).astype(np.uint8)
+    return load_and_normalize(seismic_path), np.load(labels_path)
 
 
 def _setup_seismic(cfg, seed, rng):
@@ -193,6 +208,86 @@ def _setup_seismic(cfg, seed, rng):
         1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups,
     )
     return train_labels, train_parts, loaders, client_tests, tests, model_factory, None
+
+
+def _multisurvey_surveys(cfg):
+    """(seismic_path, labels_path, offset) for the selected surveys."""
+    solo = str(getattr(cfg, "survey_solo", None) or "").strip().lower() or None
+    surveys = []
+    if solo in (None, "a"):
+        surveys.append((cfg.train_seismic, cfg.train_labels, 0))
+    if solo in (None, "b"):
+        surveys.append((cfg.survey_b_seismic, cfg.survey_b_labels, int(cfg.survey_b_offset)))
+    return surveys
+
+
+def _multisurvey_client_info(cfg):
+    """Per-client class info over the 12-class union space (deterministic)."""
+    from fedseismic.data.partition import partition_noniid
+
+    surveys = _multisurvey_surveys(cfg)
+    per_survey = cfg.num_clients // len(surveys)
+    infos = []
+    for seismic_path, labels_path, offset in surveys:
+        seismic, labels = _load_cube_pair(seismic_path, labels_path)
+        labels = np.asarray(labels).astype(int) - (1 if offset else 0) + offset
+        chunks = partition_noniid(seismic.shape[1], per_survey)
+        tparts, _ = split_client_local_test(
+            chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
+        infos.extend(compute_client_class_info(labels, tparts, cfg.num_classes, cfg.rare_classes))
+    return infos
+
+
+def _setup_multisurvey(cfg, seed, rng):
+    """Setup A: two surveys, contiguous-block sites, one union label space.
+
+    The first half of the clients are survey A (F3, classes 0-5); the second
+    half are survey B (Parihaka, remapped to ``survey_b_offset``..+5).
+    ``survey_solo`` restricts to one survey ('a' or 'b') for the local-only
+    baselines. Normalization is per survey. The test split honors
+    ``spatial_holdout_buffer`` like the single-survey path.
+    """
+    from fedseismic.data.partition import partition_noniid
+
+    if cfg.num_classes != 12:
+        cfg.num_classes = 12
+    solo = str(getattr(cfg, "survey_solo", None) or "").strip().lower() or None
+    if solo not in (None, "a", "b"):
+        raise ValueError("survey_solo must be 'a', 'b', or null")
+    surveys = _multisurvey_surveys(cfg)
+    if cfg.num_clients % len(surveys) != 0:
+        raise ValueError("num_clients must split evenly across the selected surveys")
+    per_survey = cfg.num_clients // len(surveys)
+    kwargs = _loader_kwargs(cfg)
+    train_parts, loaders, client_tests = [], [], []
+    tests = {}
+    for seismic_path, labels_path, offset in surveys:
+        if seismic_path is None or labels_path is None:
+            raise ValueError("train_seismic/train_labels and survey_b_* paths are required")
+        seismic, labels = _load_cube_pair(seismic_path, labels_path)
+        labels = (np.asarray(labels).astype(int) - (1 if offset else 0) + offset)
+        chunks = partition_noniid(seismic.shape[1], per_survey)
+        tparts, eparts = split_client_local_test(
+            chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
+        train_parts.extend(tparts)
+        loaders.extend(build_client_loaders(seismic, labels, tparts, cfg.batch_size, **kwargs))
+        client_tests.extend(build_client_loaders(
+            seismic, labels, eparts, cfg.batch_size, shuffle=False, train_status=False, **kwargs))
+    for name, seismic, labels in (
+        ("test1", cfg.test1_seismic, cfg.test1_labels),
+        ("test2", cfg.test2_seismic, cfg.test2_labels),
+    ):
+        if seismic is not None and labels is not None:
+            tests[name] = build_test_loader(
+                seismic, labels, num_workers=kwargs["num_workers"],
+                pin_memory=kwargs["pin_memory"],
+            )
+    model_factory = lambda: UNet(
+        1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups,
+    )
+    # train_labels is unused downstream for multisurvey (client_info comes
+    # from _multisurvey_client_info; _criterion ignores labels here).
+    return None, train_parts, loaders, client_tests, tests, model_factory, None
 
 
 def _public_pad(cfg, targets, seed):
@@ -313,6 +408,7 @@ def build_federated_run(cfg: RunConfig, seed):
     """Partition data, build loaders, and return everything a seed run needs."""
     _required_paths(cfg)
     rng = np.random.RandomState(seed)
+    multisurvey = bool(getattr(cfg, "multisurvey", False))
     if cfg.dataset == DatasetName.CIFAR10.value:
         train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_cifar(
             cfg, seed, rng,
@@ -321,13 +417,20 @@ def build_federated_run(cfg: RunConfig, seed):
         train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_medmnist(
             cfg, seed, rng,
         )
+    elif multisurvey:
+        train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_multisurvey(
+            cfg, seed, rng,
+        )
     else:
         train_labels, train_parts, loaders, client_tests, tests, model_factory, public_loader = _setup_seismic(
             cfg, seed, rng,
         )
-    client_info = compute_client_class_info(
-        train_labels, train_parts, cfg.num_classes, cfg.rare_classes,
-    )
+    if multisurvey:
+        client_info = _multisurvey_client_info(cfg)
+    else:
+        client_info = compute_client_class_info(
+            train_labels, train_parts, cfg.num_classes, cfg.rare_classes,
+        )
     return FederatedData(
         train_labels=train_labels, train_parts=train_parts, loaders=loaders,
         client_tests=client_tests, tests=tests, model_factory=model_factory,
