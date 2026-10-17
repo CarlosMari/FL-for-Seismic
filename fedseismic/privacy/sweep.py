@@ -32,6 +32,8 @@ def _job_name(job):
     if balance and (balance != "example" or job.get("local_steps")):
         step_tag = f"_s{job['local_steps']}" if job.get("local_steps") else ""
         name = f"{name}_b{balance}{step_tag}"
+    if job.get("balanced_steps") is not None:
+        name = f"{name}_t{int(job['balanced_steps'])}"
     if job.get("num_clients") is not None:
         name = f"{name}_n{int(job['num_clients'])}"
     if job.get("sample_ratio") is not None and abs(float(job["sample_ratio"]) - 1.0) > 1e-9:
@@ -149,6 +151,16 @@ def _expand_steps(jobs, spec):
                 copy["infer_log_prior"] = str(balance) in {"class", "class_minibatch"}
                 copy["name"] = _job_name(copy)
                 multiplied.append(copy)
+    steps_budget = spec.get("balanced_steps")
+    if isinstance(steps_budget, list):
+        capped = []
+        for job in multiplied:
+            for budget in steps_budget:
+                copy = dict(job)
+                copy["balanced_steps"] = int(budget)
+                copy["name"] = _job_name(copy)
+                capped.append(copy)
+        return capped
     return multiplied
 
 
@@ -196,6 +208,8 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["presence_rehearsal"] = spec["presence_rehearsal"]
     if spec.get("spatial_holdout_buffer") is not None:
         updates["spatial_holdout_buffer"] = int(spec["spatial_holdout_buffer"])
+    if spec.get("survey_solo") is not None:
+        updates["survey_solo"] = str(spec["survey_solo"])
     if job.get("dp_noise_multiplier") is not None:
         updates["dp_noise_multiplier"] = job["dp_noise_multiplier"]
     if job.get("dp_clip_norm") is not None:
@@ -210,6 +224,8 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["gradient_balance"] = job["gradient_balance"]
     if job.get("infer_log_prior") is not None:
         updates["infer_log_prior"] = bool(job["infer_log_prior"])
+    if job.get("balanced_steps") is not None:
+        updates["balanced_steps"] = int(job["balanced_steps"])
     if job.get("norm") is not None:
         updates["norm"] = str(job["norm"])
     if device is not None:

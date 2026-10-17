@@ -389,6 +389,42 @@ def score_sums_grid(roots, n_draws=1000, output="results/tables/sums_blood.csv",
     return table
 
 
+def lambda_trend(csv_path="results/tables/sums_lambda_blood.csv"):
+    """Monotonicity of leakage across λ (0=FedLC, 0.3, 1=FedAvg).
+
+    Per (observer, metric): Spearman rank correlation of the estimate
+    against λ, plus the endpoint gap (λ=1 minus λ=0). Pre-registered before
+    the grid finished: no threshold moves after seeing the numbers.
+    """
+    import pandas as pd
+    from scipy.stats import spearmanr
+
+    frame = pd.read_csv(csv_path)
+    lam_of = {"FedLC": 0.0, "λ=0.3": 0.3, "FedAvg": 1.0}
+    rows = []
+    for (observer, metric), group in frame.groupby(["observer", "metric"]):
+        group = group[group["method"].isin(lam_of)]
+        if len(group) < 3:
+            continue
+        xs = group["method"].map(lam_of).to_numpy(dtype=float)
+        ys = group["estimate"].to_numpy(dtype=float)
+        coef = spearmanr(xs, ys).statistic
+        endpoints = {m: float(group[group["method"] == m]["estimate"].mean()) for m in lam_of}
+        rows.append({
+            "observer": observer,
+            "metric": metric,
+            "spearman_vs_lambda": float(coef) if np.isfinite(coef) else float("nan"),
+            "fedavg_minus_fedlc": endpoints["FedAvg"] - endpoints["FedLC"],
+        })
+        print(f"  {observer} {metric} spearman {coef:+.3f} "
+              f"gap {endpoints['FedAvg'] - endpoints['FedLC']:+.3f}", flush=True)
+    out = pd.DataFrame(rows)
+    path = Path("results/tables/sums_lambda_trend.csv")
+    out.to_csv(path, index=False)
+    print(f"wrote {path.resolve()}")
+    return out
+
+
 def main_cli(argv=None):
     import argparse
 

@@ -207,28 +207,39 @@ class StepClientTrainer(ClientTrainer):
 class MinibatchBalancedTrainer(ClientTrainer):
     """Five (or ``local_epochs``) epochs of class-balanced minibatches.
 
-    Each batch holds equal shares of every class the client has, cycling
+    Each batch holds equal shares of every class the client holds, cycling
     small classes, covering the largest class once per epoch. The class
     prior is NOT added in the loss; the server adds log π at local
     evaluation when ``infer_log_prior`` is set. This is the realistic
     version of the full-batch ``class`` step: repeated examples, minibatch
     noise, and the same per-round compute as ordinary minibatch training.
+
+    ``max_steps`` caps the total number of minibatch steps per round
+    regardless of dataset size (fixed compute). ``None`` runs every batch.
     """
+
+    def __init__(self, *args, max_steps=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if max_steps is not None and int(max_steps) < 1:
+            raise ValueError("max_steps must be positive")
+        self.max_steps = None if max_steps is None else int(max_steps)
 
     def train(self, global_state=None):
         self.model.train()
         self.model.to(self.device)
         self.optimizer = self._make_optimizer()
-        batches = self._balanced_batches()
+        taken = 0
         for _ in range(max(int(self.local_epochs), 1)):
-            for images, targets in batches:
+            for images, targets in self._balanced_batches():
+                if self.max_steps is not None and taken >= self.max_steps:
+                    return self
                 images = images.to(self.device, dtype=torch.float)
                 targets = targets.to(self.device, dtype=torch.long)
                 loss = F.cross_entropy(_logits(self.model(images)), targets)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            batches = self._balanced_batches()
+                taken += 1
         return self
 
     def _balanced_batches(self):

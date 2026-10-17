@@ -60,6 +60,37 @@ class MinibatchBalanceTests(unittest.TestCase):
         batches = trainer._balanced_batches()
         self.assertTrue(len(batches) > 0)
 
+    def test_max_steps_caps_total_updates(self):
+        import torch.nn as nn
+
+        labels = torch.tensor([0] * 40 + [1] * 40)
+        torch.manual_seed(0)
+        import numpy as np
+
+        np.random.seed(0)
+        features = torch.randn(len(labels), 2)
+        from torch.utils.data import DataLoader
+        loader = DataLoader(_Triples(features, labels), batch_size=8, shuffle=False)
+        model = nn.Linear(2, 2)
+        steps = {"count": 0}
+        real_step = torch.optim.SGD.step
+
+        def counting_step(self):
+            steps["count"] += 1
+            return real_step(self)
+
+        torch.optim.SGD.step = counting_step
+        try:
+            trainer = MinibatchBalancedTrainer(
+                model, loader, nn.CrossEntropyLoss(), device="cpu",
+                local_epochs=5, lr=0.01, weight_decay=0.0, optimizer="sgd",
+                momentum=0.0, num_classes=2, max_steps=7,
+            )
+            trainer.train()
+        finally:
+            torch.optim.SGD.step = real_step
+        self.assertEqual(steps["count"], 7)
+
 
 if __name__ == "__main__":
     unittest.main()
