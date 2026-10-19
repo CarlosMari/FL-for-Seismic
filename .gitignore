@@ -105,3 +105,7 @@ figures/*.pdf
 
 # --- Numpy array dumps ---
 *.npy
+
+# Local orchestration scripts (throwaway)
+run_post_fedbn.sh
+run_solo_swap.sh
