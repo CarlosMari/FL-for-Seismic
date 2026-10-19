@@ -408,6 +408,20 @@ GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN 
 
 Solo_a (F3-alone) is done; solo_b and multisurvey have no completed runs. Per plan v3: GO iff (1) a personalization or collaboration gain on EACH survey's own holdouts, scored with present-class mIoU, and (2) multi-survey beats the solo baselines on at least one survey. Official-test F3 mIoU is reported alongside, not as the decision rule. (An earlier version of this entry made the rule official-test-based with a 0.03 margin and cut personalization-gap framing — those are thesis-framing decisions for Carlos, flagged here, not adopted.) If either condition fails, Parihaka goes to future work and Chapter 6 stays F3-only.
 
+## 2026-10-19, shared-body + per-survey heads (exploratory) — threshold pre-registered
+
+Carlos: skip further 12-class runs; try shared body + different (per-survey) heads. Advisor ruling:
+
+- **Drop the remaining 12-class FedBN fills. Keep the solo-B fills** (the baseline for any shared-body comparison — not really a 12-class run). The NO-GO is defensible without more FedBN seeds: vanilla FedAvg's Parihaka collapse (0.0) is a one-seed-shown mechanism finding, and FedBN 0.77 < solo 0.80 stands as "does not beat solo" even at 1 seed (report as single-seed, note 0.03 may be seed noise).
+- **The shared-body run is EXPLORATORY only — it cannot rescue the multi-survey chapter.** It was designed after seeing the NO-GO, so it cannot reverse a pre-registered decision. Report as "evidence for the head-conflict mechanism / candidate future-work design," not a GO.
+- **Pre-registered threshold (fixed before running):** the shared-body design "wins" as a mechanism signal only if it beats solo on BOTH surveys by more than the solo seed spread (solo A spread ≈ 0.79–0.81, so margin > 0.03). Anything less is "matches solo," and matches-solo does not reverse the decision.
+
+**Zero-GPU check first (advisor):** re-evaluate the existing 12-class FedBN checkpoints with argmax restricted to each survey's own 6 classes (F3 = 0–5, Parihaka = 6–11). If the gap to solo closes, the 12-class softmax head-conflict is already shown at no compute cost. Code: `fedseismic/privacy/restricted_head_check.py`.
+
+**Minimal clean shared-body setup:** copy the FedBN run exactly, change ONLY the final 1×1 classifier to be local + per-survey (6 classes); BN stays local (FedBN). Same seeds as solo for paired comparison. Report per-survey mIoU + per-class IoU for the gap-driving classes.
+
+**Cut order if time runs short (before Oct 25 freeze):** 12-class FedBN fills first (cut by default) → optional training-time class-restriction ablation → shared-body seeds 1,2. Never cut solo-B fills.
+
 ## 2026-10-19, multi-survey go/no-go PRELIMINARY: leaning NO-GO (1-seed FedBN)
 
 Present-class deployed-vs-deployed (the honest comparison; ignore the local-vs-shared "gain" columns — FedAvg's shared is the broken averaged-BN reference and FedBN's is N/A). Survey A = F3, B = Parihaka.
