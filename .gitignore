@@ -109,3 +109,4 @@ figures/*.pdf
 # Local orchestration scripts (throwaway)
 run_post_fedbn.sh
 run_solo_swap.sh
+run_fedperbn.sh
