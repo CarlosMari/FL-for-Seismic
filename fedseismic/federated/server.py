@@ -29,6 +29,7 @@ from .client import (
 from .fedbabu import FedBABUClientTrainer
 from .fedkper import FedKPerClientTrainer
 from .fedper import FedPerClientTrainer
+from .fedperbn import FedPerBNClientTrainer
 from .fedrod import FedRoDClientTrainer
 from .sampling import sample_clients
 
@@ -107,6 +108,7 @@ class Server:
                     "fedvls": FedVLSClientTrainer,
                     "fedkper": FedKPerClientTrainer,
                     "fedper": FedPerClientTrainer,
+                    "fedperbn": FedPerBNClientTrainer,
                     "fedbabu": FedBABUClientTrainer,
                     "fedrod": FedRoDClientTrainer,
                     "ditto": DittoClientTrainer,
