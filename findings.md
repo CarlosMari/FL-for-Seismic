@@ -408,6 +408,21 @@ GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN 
 
 Solo_a (F3-alone) is done; solo_b and multisurvey have no completed runs. Per plan v3: GO iff (1) a personalization or collaboration gain on EACH survey's own holdouts, scored with present-class mIoU, and (2) multi-survey beats the solo baselines on at least one survey. Official-test F3 mIoU is reported alongside, not as the decision rule. (An earlier version of this entry made the rule official-test-based with a 0.03 margin and cut personalization-gap framing — those are thesis-framing decisions for Carlos, flagged here, not adopted.) If either condition fails, Parihaka goes to future work and Chapter 6 stays F3-only.
 
+## 2026-10-19, multi-survey go/no-go PRELIMINARY: leaning NO-GO (1-seed FedBN)
+
+Present-class deployed-vs-deployed (the honest comparison; ignore the local-vs-shared "gain" columns — FedAvg's shared is the broken averaged-BN reference and FedBN's is N/A). Survey A = F3, B = Parihaka.
+
+| Survey | Solo (N=2) | Multi FedAvg | Multi FedBN |
+|---|---|---|---|
+| A (F3) | **0.80** (0.785/0.814/0.813) | 0.69 (0.55/0.81/0.70) | 0.68 (1 seed) |
+| B (Parihaka) | **0.80** (1 seed) | 0.75 (0.75/0.70/0.80) | 0.77 (1 seed) |
+
+**Preliminary NO-GO** — solo baselines beat multi-survey on both surveys, and solo is more stable (multi F3 wobbles 0.55–0.81 vs solo 0.79–0.81). FedBN recovers the collapsed Parihaka (0.0 → 0.77) but still does not beat Parihaka-alone (0.80). Neither condition 1 (gain on each survey) nor condition 2 (multi beats solo on ≥1) is met on current data.
+
+**Caveats before this is a decision:** FedBN has 1 seed and solo B has 1 seed. The B gap (0.77 vs 0.80) is small enough to flip with more seeds. FedBN and solo-b need 3 seeds each for a defensible call. Flagged for Carlos — this is the go/no-go decision, not to be settled in findings.
+
+**F3 single-survey control** (`results/tables/f3_per_method.csv`, 3 seeds): FedBN ≈ FedAvg on local mIoU (0.82/0.82 at N=3; 0.91/0.90 at N=5) — no FedBN benefit on one survey, as expected. FedBN shared-on-local is N/A (convention enforced). FedAvg+localBN-recal gives +0.02–0.03 over averaged-BN, confirming the diagnostic. GroupNorm rows are the BN-free control.
+
 ## 2026-10-19, FedBN shared-model convention (advisor ruling — PENDING CARLOS, Chapter 4)
 
 What is FedBN's "shared model"? FedBN keeps BN running stats per-client, so there is no single global normalisation and "shared-on-local" / "official-test" are ill-defined. Advisor ruling (flagged for Carlos, not settled thesis text):

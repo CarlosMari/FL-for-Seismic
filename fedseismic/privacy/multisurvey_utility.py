@@ -53,7 +53,9 @@ def rescore_run(run_dir, device="cuda"):
 
     global_state = load_global_state(run_dir)
     globals_by_survey = {"A": [], "B": []}
-    if global_state is not None:
+    # FedBN has no shared normalisation (shared ≡ deployed per the Chapter 4
+    # convention), so its "global" is not a defined reference. Skip it.
+    if global_state is not None and str(cfg.algorithm) != "fedbn":
         for client, loader in enumerate(data.client_tests):
             if loader is None or not len(loader.dataset):
                 continue
@@ -72,7 +74,8 @@ def rescore_run(run_dir, device="cuda"):
     return out
 
 
-def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedlc",
+def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
+                "results/runs/multisurvey_fedlc",
                 "results/runs/multisurvey_solo_a", "results/runs/multisurvey_solo_b")):
     import pandas as pd
 
