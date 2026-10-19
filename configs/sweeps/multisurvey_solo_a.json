@@ -7,7 +7,7 @@
   "heterogeneity": [
     {"split": "noniid", "partition_alpha": 0.1}
   ],
-  "num_clients_list": [1],
+  "num_clients_list": [2],
   "survey_solo": "a",
   "oracle_reference": false,
   "privacy_round_batches": 4,
