@@ -408,6 +408,19 @@ GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN 
 
 Solo_a (F3-alone) is done; solo_b and multisurvey have no completed runs. Per plan v3: GO iff (1) a personalization or collaboration gain on EACH survey's own holdouts, scored with present-class mIoU, and (2) multi-survey beats the solo baselines on at least one survey. Official-test F3 mIoU is reported alongside, not as the decision rule. (An earlier version of this entry made the rule official-test-based with a 0.03 margin and cut personalization-gap framing — those are thesis-framing decisions for Carlos, flagged here, not adopted.) If either condition fails, Parihaka goes to future work and Chapter 6 stays F3-only.
 
+## 2026-10-19, FedBN shared-model convention (advisor ruling — PENDING CARLOS, Chapter 4)
+
+What is FedBN's "shared model"? FedBN keeps BN running stats per-client, so there is no single global normalisation and "shared-on-local" / "official-test" are ill-defined. Advisor ruling (flagged for Carlos, not settled thesis text):
+
+- **Use (b) for the deployed model + (c) for the shared column. Reject (a).** Averaging BN stats is exactly the mechanism the diagnostic proved failing in Setup A — a number from it measures the averaging, not FedBN. FedBN deployed = shared weights + each site's own BN = (b).
+- **FedBN shared-on-local = N/A** ("FedBN has no global normalisation; shared ≡ deployed"), not a synthesized number.
+- **FedBN official-test = each client's deployed model (own BN) on the official test, mean over clients**, labelled "deployed → official test". Never a synthetic averaged-BN model.
+- **The existing 0.43–0.58 official range is unusable as-is** (BN source unstated, pooled with FedAvg). Recompute, split by method.
+- **Go/no-go uses deployed-vs-deployed:** FedAvg-deployed vs solo (prerequisite: does collaboration help at all), FedBN-deployed vs solo (the go/no-go), FedBN-deployed vs FedAvg-deployed (does local normalisation add anything). None use FedBN's global model, so the site-0 choice can't contaminate the decision. "FedAvg deployed" = global weights + global (averaged) BN, eval mode.
+- **Sanity check:** FedAvg + BN recalibrated on each site's train data (the diagnostic already validated this recovers Parihaka). If it closes the FedBN−FedAvg gap, FedBN's advantage is post-hoc BN, not training. GroupNorm is the BN-free control: an edge only under BatchNorm points to a BN artifact.
+
+Code: `fedseismic/privacy/f3_per_method.py` (F3 per-method table with these columns). Existing F3 grid shows the trap: FedBN-BN N=5 `global_on_local` 0.67 vs FedAvg-BN 0.86 — the broken FedBN "global BN" reference.
+
 ## 2026-10-19, BN aggregation is the Setup A failure mode (diagnostic)
 
 The multi-survey FedAvg `global_on_local ≈ 0` on Parihaka was a BatchNorm artifact, not a union-head or transfer limit. Diagnostic (existing FedAvg global model, seed 0): with averaged BN running stats in eval mode, Parihaka mIoU = 0.0003/0.0004 (per-class ≈ 0, only 0.002 at one class); after recomputing BN running stats on Parihaka's own train data — exactly what FedBN keeps local — the SAME model reaches Parihaka mIoU 0.7607 (client 2) / 0.5985 (client 3), per-class IoU 0.71–0.92. The 12-class union head learned both surveys fine; the only failure was cross-survey BatchNorm statistic averaging. FedBN (BN kept local) is therefore the fix, per Carlos's proposal. The earlier "0.75 vs 0.0 personalization gap" was a broken-reference artifact (global model scored below majority-class on F3 official test, 0.10–0.19) and is not a finding. Label-space check is clean (Parihaka train and test are both 6–11). Next: train FedBN 12-class union (1 seed) for a real go/no-go number.
