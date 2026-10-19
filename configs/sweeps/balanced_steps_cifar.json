@@ -1,0 +1,17 @@
+{
+  "base": "configs/fedkper_cifar10.json",
+  "output_root": "results/runs/balanced_steps_cifar",
+  "num_rounds": 40,
+  "seeds": [0, 1, 42],
+  "algorithms": ["fedavg"],
+  "heterogeneity": [
+    {"split": "noniid", "partition_alpha": 0.1}
+  ],
+  "gradient_balance": ["class_minibatch"],
+  "balanced_steps": [35, 165],
+  "oracle_reference": false,
+  "logit_adjust": false,
+  "privacy_round_batches": 16,
+  "privacy_log_last_only": false,
+  "privacy_save_received": true
+}

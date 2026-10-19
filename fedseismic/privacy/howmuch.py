@@ -381,6 +381,10 @@ def _metric_bundle(rows):
         "counts_spearman": _counts_spearman(counts, pred),
         "counts_spearman_floor": _counts_spearman(
             counts, [np.mean(np.stack(counts), axis=0) for _ in counts]),
+        "size_only_counts_r2": counts_r2(
+            counts,
+            [size * np.mean(np.stack(pis), axis=0)
+             for size in [row["pred_size"] for row in rows]]),
         "size_r2": size_r2(counts, [row["pred_size"] for row in rows]),
         "prop_oracle_r2": proportions_r2(pis, [row["oracle"] for row in rows]),
         "prop_estimated_r2": proportions_r2(pis, [row["estimated"] for row in rows]),
@@ -538,10 +542,11 @@ def summarize(grouped, n_draws=1000):
     from fedseismic.privacy.mechanism import DISPLAY
 
     headlines = (
-        "counts_r2", "counts_spearman", "size_r2", "prop_oracle_r2", "prop_estimated_r2",
+        "counts_r2", "counts_spearman", "size_only_counts_r2", "size_r2",
+        "prop_oracle_r2", "prop_estimated_r2",
         "support_auc", "support_leakage", "support_tpr", "mix_r2",
     )
-    zero_floor = {"counts_r2", "size_r2", "prop_oracle_r2", "prop_estimated_r2", "mix_r2"}
+    zero_floor = {"counts_r2", "size_only_counts_r2", "size_r2", "prop_oracle_r2", "prop_estimated_r2", "mix_r2"}
     table = []
     rng = np.random.RandomState(0)
     for key in sorted(grouped):
@@ -958,7 +963,7 @@ def score_saved_runs(roots, n_draws=1000, output=None):
                 oracle=np.stack([row["oracle"] for row in rows]),
                 estimated=np.stack([row["estimated"] for row in rows]),
             )
-    headlines = ("counts_r2", "counts_spearman", "size_r2", "support_auc", "support_leakage", "support_tpr",
+    headlines = ("counts_r2", "counts_spearman", "size_only_counts_r2", "size_r2", "support_auc", "support_leakage", "support_tpr",
                  "prop_oracle_r2", "prop_estimated_r2")
     rng = np.random.RandomState(0)
     table = []
@@ -993,8 +998,8 @@ def score_saved_runs(roots, n_draws=1000, output=None):
                 "floor": floor,
             })
             if (attacker in {"row", "decaf", "bias"} and metric in {
-                    "counts_r2", "counts_spearman", "support_auc", "support_tpr",
-                    "prop_estimated_r2"}):
+                    "counts_r2", "counts_spearman", "size_only_counts_r2",
+                    "support_auc", "support_tpr", "prop_estimated_r2"}):
                 print(f"  {method} {attacker} {metric} {point:.3f} [{low:.3f}, {high:.3f}]", flush=True)
     frame = pd.DataFrame(table)
     path = Path(output or "results/tables/fedkper_howmuch.csv")

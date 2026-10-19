@@ -455,8 +455,39 @@ def _last_or_nan(values):
     return float(measured[-1]) if measured else float("nan")
 
 
+def _git_head():
+    """Current commit hash, or null outside a git checkout. Recorded in
+    every run's metadata so results can always be traced to the code that
+    produced them (uncommitted-code results are not valid)."""
+    import subprocess
+
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+            timeout=10,
+        ).stdout.strip() or None
+    except Exception:
+        return None
+
+
+def _git_dirty():
+    """True when the working tree has uncommitted changes. A run with a
+    hash but a dirty tree is not reproducible from git alone."""
+    import subprocess
+
+    try:
+        return bool(subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True,
+            timeout=10,
+        ).stdout.strip())
+    except Exception:
+        return None
+
+
 def _run_seed(cfg, seed):
     _seed_everything(seed)
+    git_head = _git_head()
+    git_dirty = _git_dirty()
     cfg.device = resolve_device(cfg.device)
     data = build_federated_run(cfg, seed)
     seed_dir = None
@@ -504,6 +535,8 @@ def _run_seed(cfg, seed):
         logger.write_meta({
             "seed": seed,
             "config": cfg.to_dict(),
+            "git_head": git_head,
+            "git_dirty": git_dirty,
             "utility": {
                 "local_mean": local_mean,
                 "local_worst": local_worst,
@@ -515,6 +548,8 @@ def _run_seed(cfg, seed):
             "final": final, "best": best, "c5": c5,
             "local_mean": local_mean, "local_worst": local_worst,
             "global_on_local": global_on_local,
+            "git_head": git_head,
+            "git_dirty": git_dirty,
         }, indent=2), encoding="utf-8")
     return (
         final, best, c5, local_mean, local_worst, global_on_local, history,
