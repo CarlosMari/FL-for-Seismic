@@ -1,0 +1,9 @@
+run,algorithm,logit_adjust,survey_solo,A_local_miou,A_global_on_local,A_gain,B_local_miou,B_global_on_local,B_gain
+results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_0,fedavg,False,,0.5481739094990289,0.3057199626094388,0.2424539468895901,0.7503691533260175,0.0003471668003363136,0.7500219865256812
+results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_1,fedavg,False,,0.8082360835894917,0.23388355564950483,0.5743525279399869,0.703416233768501,0.00011337130451806595,0.703302862463983
+results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_42,fedavg,False,,0.6994124922219671,0.09418331530185176,0.6052291769201154,0.7975337794821726,0.0,0.7975337794821726
+results/runs/multisurvey_fedbn/fedbn_noniid_a0.1_lNA_dna_n4/seed_0,fedbn,False,,0.6763013627503303,,,0.768676217619521,,
+results/runs/multisurvey_solo_a/fedavg_noniid_a0.1_lNA_dna_n2/seed_0,fedavg,False,a,0.7851403093488489,0.7914425742786897,-0.006302264929840762,,,
+results/runs/multisurvey_solo_a/fedavg_noniid_a0.1_lNA_dna_n2/seed_1,fedavg,False,a,0.8142448435126153,0.7826485533317298,0.0315962901808855,,,
+results/runs/multisurvey_solo_a/fedavg_noniid_a0.1_lNA_dna_n2/seed_42,fedavg,False,a,0.8126928399249751,0.7950571987023927,0.017635641222582432,,,
+results/runs/multisurvey_solo_b/fedavg_noniid_a0.1_lNA_dna_n2/seed_0,fedavg,False,b,,,,0.8015649099567188,0.7976920192258893,0.0038728907308295257
