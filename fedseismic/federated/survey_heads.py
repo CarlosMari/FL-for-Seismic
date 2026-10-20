@@ -94,6 +94,21 @@ class FedPerSurveyBNClientTrainer(FedPerClientTrainer):
         self.model.load_state_dict(uploaded)
         return self
 
+    def download(self, state_dict):
+        # Load the shared body + the per-survey pooled head from the aggregate,
+        # then restore ONLY local BN. The head must come from the aggregate
+        # (shared within survey), not from personal_state — otherwise the
+        # per-survey pooling is thrown away each round and the head is per-client.
+        super(FedPerClientTrainer, self).download(state_dict)
+        if self.personal_state is None:
+            return self
+        overlay = {
+            key: self.personal_state[key]
+            for key in self._local_keys(state_dict) if key in self.personal_state
+        }
+        self.model.load_state_dict(overlay, strict=False)
+        return self
+
 
 def aggregate_survey_heads(states, client_infos, num_classes):
     """Body averaged over all sites; outc rows averaged within each survey.
