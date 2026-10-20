@@ -30,6 +30,7 @@ from .fedbabu import FedBABUClientTrainer
 from .fedkper import FedKPerClientTrainer
 from .fedper import FedPerClientTrainer
 from .fedperbn import FedPerBNClientTrainer
+from .survey_heads import FedPerSurveyBNClientTrainer
 from .fedrod import FedRoDClientTrainer
 from .sampling import sample_clients
 
@@ -109,6 +110,7 @@ class Server:
                     "fedkper": FedKPerClientTrainer,
                     "fedper": FedPerClientTrainer,
                     "fedperbn": FedPerBNClientTrainer,
+                    "fedpersurvey": FedPerSurveyBNClientTrainer,
                     "fedbabu": FedBABUClientTrainer,
                     "fedrod": FedRoDClientTrainer,
                     "ditto": DittoClientTrainer,
@@ -126,6 +128,7 @@ class Server:
                 public_loader=(
                     self.public_loader if getattr(self.config, "train_public_pad", False) else None
                 ),
+                max_steps=getattr(self.config, "max_steps", None),
             )
             if factory is FedProxClientTrainer:
                 kwargs["mu"] = self.config.mu
@@ -171,6 +174,14 @@ class Server:
                         continue
                     averaged[key] = sum(state[key] for state in states) / len(states)
                 return averaged
+            if self.config.algorithm == "fedpersurvey":
+                from .survey_heads import aggregate_survey_heads
+
+                infos = [
+                    self.client_info[c] for c in selected
+                    if self.client_info is not None and c < len(self.client_info)
+                ]
+                return aggregate_survey_heads(states, infos, self.config.num_classes)
             return aggregate_state_dicts(states)
         weights = get_agg_weights(
             strategy, selected, self.client_info, client_class_ious=class_ious,

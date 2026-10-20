@@ -25,12 +25,13 @@ class ClientTrainer:
     def __init__(self, model, loader, criterion, device="cpu", local_epochs=1,
                  lr=1e-3, weight_decay=1e-4, optimizer="adamw", momentum=0.9,
                  num_classes=None, logit_adjust=False, prior_smooth=0.0,
-                 class_reweight=False, public_loader=None):
+                 class_reweight=False, public_loader=None, max_steps=None):
         self.model = model
         self.loader = loader
         self.criterion = criterion
         self.device = device
         self.local_epochs = local_epochs
+        self.max_steps = None if max_steps is None else int(max_steps)
         self.lr = lr
         self.weight_decay = weight_decay
         self.optimizer_name = str(optimizer).strip().lower()
@@ -102,9 +103,13 @@ class ClientTrainer:
         self.optimizer = self._make_optimizer()
         log_prior = self._log_prior()
         weight = self._loss_weight()
+        max_steps = getattr(self, "max_steps", None)
+        taken = 0
         for _ in range(self.local_epochs):
             for loader in self._train_loaders():
                 for images, targets, _ in loader:
+                    if max_steps is not None and taken >= int(max_steps):
+                        return self
                     images = images.to(self.device, dtype=torch.float)
                     targets = targets.to(self.device, dtype=torch.long)
                     logits = _with_log_prior(_logits(self.model(images)), log_prior)
@@ -115,6 +120,7 @@ class ClientTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
+                    taken += 1
         return self
 
     def upload(self):

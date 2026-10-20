@@ -226,6 +226,8 @@ def _cell_config(base, spec, job, seed, output_dir, device=None):
         updates["infer_log_prior"] = bool(job["infer_log_prior"])
     if job.get("balanced_steps") is not None:
         updates["balanced_steps"] = int(job["balanced_steps"])
+    if spec.get("max_steps") is not None:
+        updates["max_steps"] = int(spec["max_steps"])
     if job.get("norm") is not None:
         updates["norm"] = str(job["norm"])
     if device is not None:

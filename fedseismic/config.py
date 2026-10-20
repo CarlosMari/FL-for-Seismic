@@ -65,6 +65,7 @@ class RunConfig:
     num_rounds: int = 20
     local_epochs: int = 3
     local_steps: int | None = None
+    max_steps: int | None = None
     gradient_balance: str = "example"
     infer_log_prior: bool = False
     batch_size: int = 4
@@ -142,6 +143,8 @@ class RunConfig:
             raise ValueError("num_clients, num_rounds, and local_epochs must be positive")
         if self.local_steps is not None and int(self.local_steps) < 1:
             raise ValueError("local_steps must be positive")
+        if self.max_steps is not None and int(self.max_steps) < 1:
+            raise ValueError("max_steps must be positive")
         self.gradient_balance = str(self.gradient_balance).strip().lower()
         if self.gradient_balance not in {"example", "class", "class_minibatch"}:
             raise ValueError("gradient_balance must be 'example', 'class', or 'class_minibatch'")
