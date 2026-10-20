@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 
 import numpy as np
+import torch
 
 
 def _survey_of(client, per_survey, survey_solo=None):
@@ -18,13 +19,44 @@ def _survey_of(client, per_survey, survey_solo=None):
     return "A" if client < per_survey else "B"
 
 
+def _score_deployed(model, loader, num_classes, class_block, device):
+    """Present-class mIoU with argmax masked to ``class_block``.
+
+    FedPer/FedPerBN deploy a per-survey model: only the client's own class
+    rows are trained, the rest sit at init and would win an unmasked argmax.
+    Masking is the deployed model's own semantics, not a trick.
+    """
+    from fedseismic.eval.metrics import _logits, _present_mean
+    from sklearn.metrics import jaccard_score
+
+    model.eval()
+    model.to(device)
+    lo, hi = class_block
+    mask = torch.zeros(num_classes, dtype=torch.bool)
+    mask[lo:hi] = True
+    preds, targs = [], []
+    with torch.no_grad():
+        for images, labels, _ in loader:
+            logits = _logits(model(images.to(device, dtype=torch.float)))
+            logits = logits.clone()
+            logits[:, ~mask.to(device)] = -1e9
+            preds.append(logits.argmax(dim=1).cpu().numpy().ravel())
+            targs.append(np.asarray(labels.detach().cpu() if torch.is_tensor(labels) else labels).ravel())
+    if not preds:
+        return float("nan")
+    y_pred = np.concatenate(preds)
+    y_true = np.concatenate(targs)
+    per = jaccard_score(y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0)
+    return _present_mean(per, y_true, num_classes)
+
+
 def rescore_run(run_dir, device="cuda"):
     from fedseismic.config import RunConfig, resolve_device
     from fedseismic.experiment import build_federated_run
     from fedseismic.eval.metrics import score_loader
     from fedseismic.models import UNet
     from fedseismic.privacy.log import (
-        load_global_state, load_local_states, load_meta,
+        load_global_state, load_local_states, load_meta, load_personal_states,
     )
 
     device = resolve_device(device)
@@ -39,8 +71,21 @@ def rescore_run(run_dir, device="cuda"):
         return UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm,
                     groups=cfg.norm_groups)
 
+    # FedPer/FedPerBN deploy the personal model (body + own head + own BN);
+    # local/ holds the upload (body + global head), which is the wrong head
+    # for evaluation. Use personal/ for those, local/ otherwise.
+    algo = str(cfg.algorithm)
+    uses_personal = algo in ("fedper", "fedperbn")
+    deployed_states = (
+        load_personal_states(run_dir) if uses_personal else load_local_states(run_dir)
+    )
+
+    def _survey_block(client):
+        survey = _survey_of(client, per_survey, cfg.survey_solo)
+        return (0, 6) if survey == "A" else (6, 12)
+
     locals_by_survey = {"A": [], "B": []}
-    for client, state in sorted(load_local_states(run_dir).items()):
+    for client, state in sorted(deployed_states.items()):
         if client >= len(data.client_tests):
             continue
         loader = data.client_tests[client]
@@ -48,7 +93,10 @@ def rescore_run(run_dir, device="cuda"):
             continue
         model = _new()
         model.load_state_dict(state)
-        score = score_loader(model, loader, cfg.num_classes, device, cfg.task)[0]
+        if uses_personal:
+            score = _score_deployed(model, loader, cfg.num_classes, _survey_block(client), device)
+        else:
+            score = score_loader(model, loader, cfg.num_classes, device, cfg.task)[0]
         locals_by_survey[_survey_of(client, per_survey, cfg.survey_solo)].append(score)
 
     global_state = load_global_state(run_dir)
