@@ -408,6 +408,24 @@ GroupNorm nearest-neighbor re-identification (no BN anywhere), 3 seeds each: GN 
 
 Solo_a (F3-alone) is done; solo_b and multisurvey have no completed runs. Per plan v3: GO iff (1) a personalization or collaboration gain on EACH survey's own holdouts, scored with present-class mIoU, and (2) multi-survey beats the solo baselines on at least one survey. Official-test F3 mIoU is reported alongside, not as the decision rule. (An earlier version of this entry made the rule official-test-based with a 0.03 margin and cut personalization-gap framing — those are thesis-framing decisions for Carlos, flagged here, not adopted.) If either condition fails, Parihaka goes to future work and Chapter 6 stays F3-only.
 
+## 2026-10-19, Setup B interpretation (head vs body) + frozen-body ladder
+
+Carlos: "if we trained a different classifier head in every model, it learns different WEIGHTS, doesn't it?" Yes — per-survey heads change body+head weights, so Setup B is not a clean "head conflict" isolation. Advisor ruling, with the restricted-argmax result (below) folded in:
+
+- The restricted-argmax check ruled out **inference-time** 12-class softmax competition (F3 0.676 → 0.676; Parihaka 0.769 → 0.727). So a Setup B win is NOT "head conflict at inference."
+- The real mechanism is **training-time** loss coupling: a shared 12-way softmax on disjoint labels pushes each client's cross-entropy to suppress the other survey's logits, sending gradient into the shared body. Per-survey heads (or masking the loss to own classes) remove that coupling.
+- **Defensible claim:** "survey-specific output layers lower interference by removing the cross-survey negative-logit gradient." Not "head conflict at inference."
+- Per-survey heads treat a **symptom** (loss coupling); the underlying finding is negative transfer from sharing parameters across disjoint-label tasks. Frame as a **decomposition**, not a fix.
+
+**Frozen-body ladder (cheapest first, before Oct 25 freeze):**
+1. **Frozen-body probe** (minutes): freeze the FedBN body (shared weights + own BN), train only fresh per-survey 6-class heads. ≈solo (0.80) → features fine, the problem is loss/head training. ≈multi (0.68/0.77) → body features degraded.
+2. Full Setup B retrain — only if (1) leaves a large gap.
+3. Solo bound.
+
+**Not foreordained:** Setup B ≈multi → body-sharing is the problem (per-survey heads don't help); ≈solo → loss coupling is the mechanism; >solo → positive transfer. Report the ladder gaps as attribution.
+
+**Advisor flag:** the F3 gap is mostly client 1 (0.44 vs client 0's 0.92) — intra-survey client heterogeneity, not cross-survey interference. Compare client 1's F3-solo score vs its multi score before blaming Parihaka for F3's 0.68.
+
 ## 2026-10-19, shared-body + per-survey heads (exploratory) — threshold pre-registered
 
 Carlos: skip further 12-class runs; try shared body + different (per-survey) heads. Advisor ruling:
@@ -421,6 +439,29 @@ Carlos: skip further 12-class runs; try shared body + different (per-survey) hea
 **Minimal clean shared-body setup:** copy the FedBN run exactly, change ONLY the final 1×1 classifier to be local + per-survey (6 classes); BN stays local (FedBN). Same seeds as solo for paired comparison. Report per-survey mIoU + per-class IoU for the gap-driving classes.
 
 **Cut order if time runs short (before Oct 25 freeze):** 12-class FedBN fills first (cut by default) → optional training-time class-restriction ablation → shared-body seeds 1,2. Never cut solo-B fills.
+
+## 2026-10-20, the size confound is step-count, NOT aggregation (advisor SOTA + a measurement that refines it)
+
+The advisor's SOTA reading (FedNova "objective inconsistency": local epochs over unequal client loaders → the big client takes more SGD steps per round → it dominates the objective) predicted 2.8–6× step imbalance. **My measurement on the actual multi-survey loaders refines this: only ~1.1×.** The seismic loaders are by crossline sections, so Parihaka's larger *voxel* count does not translate to proportionally more SGD steps:
+
+| client | survey | steps in 3 local epochs |
+|---|---|---|
+| 0 (A) | F3 | 210 |
+| 1 (A) | F3 | 213 |
+| 2 (B) | Parihaka | 237 |
+| 3 (B) | Parihaka | 237 |
+
+**Consequence:** equal-steps (the FedNova-consistent fix; I wired `max_steps` into `ClientTrainer` regardless, as the SOTA-correct control) will **NOT** fix the F3 dip — F3's 0.68 is not step-dominance. It is **task/label interference through the shared body+head** (Parihaka's 11× larger label mix shifts the shared 12-class geometry). This is consistent with FedPer already recovering F3 (0.82): local heads remove the interference. So the *remaining* problem is purely H3 (FedPerBN's per-client heads lose Parihaka's within-survey pooling), and the fix is **per-survey heads**, not equal-steps.
+
+## 2026-10-20, per-survey heads (FedPerSurveyBN / `fedpersurvey`) — PREDICTION (written before scoring)
+
+Setup B with the head shared WITHIN each survey (F3 sites pool rows 0–5, Parihaka sites pool rows 6–11), body shared across all 4, BN local, masked loss (no cross-survey coupling), no self-mixing. `fedseismic/federated/survey_heads.py` (`aggregate_survey_heads`: body averaged over all sites, each outc row averaged over its survey's sites only). 3 seeds running, deployed + masked present-class mIoU.
+
+- **PREDICTION: F3 ≈ 0.82 AND Parihaka ≈ 0.78+.** Rationale: per-survey heads restore Parihaka's 2-site head pooling (the 0.672→0.80 gap is H3) and keep F3's interference removal (0.816). Both surveys should reach ~solo (0.80) or better. **This is the Setup B that should finally satisfy the go/no-go (personalization on each survey + multi-survey ≥ solo on ≥1).**
+- If this holds: Chapter 4 headline = FedPer+BN with per-survey heads, and the size/task-confound story (shared-on-local N/A).
+- If Parihaka STILL < 0.72: the gap is body-level (the shared body degrades Parihaka's volume features), and only a Parihaka-local body would fix it → then report the FedPerBN dip as the honest multi-survey boundary.
+
+Implementation notes (committed `1d9783d`, 85/85 green): the deployed per-survey model suppresses untrained head rows (bias −1e9, weight 0) so an unmasked argmax picks own classes; state dicts kept on CPU in `train()` to avoid a 3× GPU model copy that OOM'd the first smoke. `max_steps` added to `ClientTrainer` (config→server→trainer) as the equal-steps control.
 
 ## 2026-10-19, multi-survey go/no-go PRELIMINARY: leaning NO-GO (1-seed FedBN)
 
