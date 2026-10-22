@@ -25,6 +25,10 @@ def _score_deployed(model, loader, num_classes, class_block, device):
     FedPer/FedPerBN deploy a per-survey model: only the client's own class
     rows are trained, the rest sit at init and would win an unmasked argmax.
     Masking is the deployed model's own semantics, not a trick.
+
+    Returns ``(present_mean, per_class_iou, present_mask)`` — the per-class
+    breakdown (and which classes actually occur at the site) is the "real
+    mIoU" we record per site, not just the macro mean.
     """
     from fedseismic.eval.metrics import _logits, _present_mean
     from sklearn.metrics import jaccard_score
@@ -43,11 +47,15 @@ def _score_deployed(model, loader, num_classes, class_block, device):
             preds.append(logits.argmax(dim=1).cpu().numpy().ravel())
             targs.append(np.asarray(labels.detach().cpu() if torch.is_tensor(labels) else labels).ravel())
     if not preds:
-        return float("nan")
+        nan = float("nan")
+        return nan, np.full(num_classes, nan), np.zeros(num_classes, dtype=bool)
     y_pred = np.concatenate(preds)
     y_true = np.concatenate(targs)
     per = jaccard_score(y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0)
-    return _present_mean(per, y_true, num_classes)
+    present = np.asarray(
+        [np.any(y_true == k) for k in range(num_classes)], dtype=bool
+    )
+    return _present_mean(per, y_true, num_classes), np.asarray(per), present
 
 
 def rescore_run(run_dir, device="cuda"):
@@ -84,6 +92,8 @@ def rescore_run(run_dir, device="cuda"):
         return (0, 6) if survey == "A" else (6, 12)
 
     locals_by_survey = {"A": [], "B": []}
+    per_class_by_survey = {"A": [], "B": []}
+    per_site_rows = []
     for client, state in sorted(deployed_states.items()):
         if client >= len(data.client_tests):
             continue
@@ -93,10 +103,29 @@ def rescore_run(run_dir, device="cuda"):
         model = _new()
         model.load_state_dict(state)
         if uses_personal:
-            score = _score_deployed(model, loader, cfg.num_classes, _survey_block(client), device)
+            score, per_class, present = _score_deployed(
+                model, loader, cfg.num_classes, _survey_block(client), device
+            )
         else:
-            score = score_loader(model, loader, cfg.num_classes, device, cfg.task)[0]
-        locals_by_survey[_survey_of(client, per_survey, cfg.survey_solo)].append(score)
+            score, per_class, _ = score_loader(
+                model, loader, cfg.num_classes, device, cfg.task
+            )
+            per_class = np.asarray(per_class, dtype=np.float64)
+            present = np.asarray(
+                [np.any(np.concatenate([
+                    np.asarray(t.detach().cpu() if torch.is_tensor(t) else t).ravel()
+                    for _, t, _ in loader
+                ]) == k) for k in range(cfg.num_classes)], dtype=bool
+            )
+        survey = _survey_of(client, per_survey, cfg.survey_solo)
+        locals_by_survey[survey].append(score)
+        per_class_by_survey[survey].append(per_class)
+        for k in range(cfg.num_classes):
+            per_site_rows.append({
+                "survey": survey, "client": client, "class": k,
+                "iou": float(per_class[k]) if k < len(per_class) else float("nan"),
+                "present": bool(present[k]) if k < len(present) else False,
+            })
 
     global_state = load_global_state(run_dir)
     globals_by_survey = {"A": [], "B": []}
@@ -120,15 +149,24 @@ def rescore_run(run_dir, device="cuda"):
         out[f"{name}_local_miou"] = local
         out[f"{name}_global_on_local"] = glob
         out[f"{name}_gain"] = local - glob
+        # Real per-class mIoU: mean over the survey's sites, one value per class.
+        if per_class_by_survey[name]:
+            stacked = np.vstack(per_class_by_survey[name])
+            out[f"{name}_local_per_class_iou"] = np.nanmean(stacked, axis=0).tolist()
+        else:
+            out[f"{name}_local_per_class_iou"] = []
+    out["_per_site_class_rows"] = per_site_rows
     return out
 
 
 def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
-                "results/runs/multisurvey_fedperbn", "results/runs/multisurvey_fedlc",
+                "results/runs/multisurvey_fedperbn", "results/runs/multisurvey_fedpersurvey",
+                "results/runs/multisurvey_fedlc",
                 "results/runs/multisurvey_solo_a", "results/runs/multisurvey_solo_b")):
     import pandas as pd
 
     rows = []
+    detail_rows = []
     for root in roots:
         root = Path(root)
         if not root.is_dir():
@@ -144,6 +182,13 @@ def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
             except Exception as exc:
                 print(f"  FAILED: {exc}", flush=True)
                 continue
+            detail = scored.pop("_per_site_class_rows", [])
+            for r in detail:
+                r.update({
+                    "run": str(run), "algorithm": cfg.get("algorithm"),
+                    "seed": meta.get("seed"), "survey_solo": cfg.get("survey_solo"),
+                })
+            detail_rows.extend(detail)
             rows.append({
                 "run": str(run),
                 "algorithm": cfg.get("algorithm"),
@@ -151,12 +196,19 @@ def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
                 "survey_solo": cfg.get("survey_solo"),
                 **scored,
             })
-            print("  ", {k: round(v, 3) for k, v in scored.items()}, flush=True)
+            flat = {k: (round(v, 3) if isinstance(v, (int, float)) and not isinstance(v, bool) else v)
+                    for k, v in scored.items()}
+            print("  ", flat, flush=True)
     frame = pd.DataFrame(rows)
     out = Path("results/tables/multisurvey_utility.csv")
     out.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(out, index=False)
     print(f"wrote {out.resolve()}")
+    if detail_rows:
+        det = pd.DataFrame(detail_rows)
+        det_out = Path("results/tables/multisurvey_per_class.csv")
+        det.to_csv(det_out, index=False)
+        print(f"wrote {det_out.resolve()} ({len(det)} per-site class rows)")
     return frame
 
 
