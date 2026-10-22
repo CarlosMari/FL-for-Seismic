@@ -162,7 +162,8 @@ def rescore_run(run_dir, device="cuda"):
 def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
                 "results/runs/multisurvey_fedperbn", "results/runs/multisurvey_fedpersurvey",
                 "results/runs/multisurvey_fedlc",
-                "results/runs/multisurvey_solo_a", "results/runs/multisurvey_solo_b")):
+                "results/runs/multisurvey_solo_a", "results/runs/multisurvey_solo_b",
+                "results/runs/multisurvey_solo_k6_a", "results/runs/multisurvey_solo_k6_b")):
     import pandas as pd
 
     rows = []
