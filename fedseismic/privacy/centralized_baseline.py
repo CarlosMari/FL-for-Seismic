@@ -38,7 +38,9 @@ def _own_classes(loader, num_classes):
         np.asarray(t.detach().cpu() if torch.is_tensor(t) else t).ravel()
         for _, t, _ in loader
     ]).astype(int)
-    return torch.as_tensor(np.unique(labels), dtype=torch.long), labels
+    present = np.unique(labels)
+    present = present[present != 255]  # 255 == IGNORE (background), not a class
+    return torch.as_tensor(present, dtype=torch.long), labels
 
 
 def _pool(loaders, batch_size, shuffle, seed):
@@ -79,7 +81,10 @@ def run_centralized(survey, cfg, device, seed=0):
     cfg = RunConfig.from_mapping({**dataclasses.asdict(cfg), "survey_solo": survey,
                                   "num_clients": 2})
     data = build_federated_run(cfg, seed)
-    block = (0, 6) if str(survey).upper() == "A" else (6, 12)
+    s = str(survey).upper()
+    b_off = int(getattr(cfg, "survey_b_offset", 6))
+    c_off = int(getattr(cfg, "survey_c_offset", 12))
+    block = {"A": (0, b_off), "B": (b_off, c_off)}.get(s, (c_off, int(cfg.num_classes)))
     train_loader = _pool(data.loaders, cfg.batch_size, True, seed)
     test_loader = _pool(data.client_tests, cfg.batch_size, False, seed)
     own, _ = _own_classes(train_loader, cfg.num_classes)
@@ -124,9 +129,19 @@ def main():
     out = Path("results/tables/centralized_baseline.csv")
     out.parent.mkdir(parents=True, exist_ok=True)
     import pandas as pd
-    pd.DataFrame(rows).to_csv(out, index=False)
+    new = pd.DataFrame(rows)
+    if out.is_file():
+        old = pd.read_csv(out)
+        new = (pd.concat([old, new], ignore_index=True)
+               .drop_duplicates(subset=["survey", "seed"], keep="last"))
+    new.to_csv(out, index=False)
     det_out = Path("results/tables/centralized_per_class.csv")
-    pd.DataFrame(detail).to_csv(det_out, index=False)
+    det = pd.DataFrame(detail)
+    if det_out.is_file():
+        oldd = pd.read_csv(det_out)
+        det = (pd.concat([oldd, det], ignore_index=True)
+               .drop_duplicates(subset=["survey", "seed", "class"], keep="last"))
+    det.to_csv(det_out, index=False)
     print(f"wrote {out.resolve()} and {det_out.resolve()}", flush=True)
 
 
