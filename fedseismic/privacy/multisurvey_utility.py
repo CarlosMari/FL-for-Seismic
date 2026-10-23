@@ -16,7 +16,9 @@ import torch
 def _survey_of(client, per_survey, survey_solo=None):
     if survey_solo:
         return str(survey_solo).upper()
-    return "A" if client < per_survey else "B"
+    # Clients are grouped by survey in order A, B, C (each with per_survey sites).
+    idx = int(client) // int(per_survey)
+    return ("ABC"[idx] if idx < 3 else "C")
 
 
 def _score_deployed(model, loader, num_classes, class_block, device):
@@ -73,7 +75,13 @@ def rescore_run(run_dir, device="cuda"):
     cfg = RunConfig.from_mapping(meta["config"])
     seed = int(meta.get("seed", cfg.seed))
     data = build_federated_run(cfg, seed)
-    per_survey = cfg.num_clients // 2 if not cfg.survey_solo else cfg.num_clients
+    if cfg.survey_solo:
+        per_survey = cfg.num_clients
+    else:
+        n_surveys = ((1 if cfg.train_seismic else 0)
+                     + (1 if getattr(cfg, "survey_b_seismic", None) else 0)
+                     + (1 if getattr(cfg, "survey_c_seismic", None) else 0))
+        per_survey = cfg.num_clients // max(n_surveys, 1)
 
     def _new():
         return UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm,
@@ -89,7 +97,13 @@ def rescore_run(run_dir, device="cuda"):
 
     def _survey_block(client):
         survey = _survey_of(client, per_survey, cfg.survey_solo)
-        return (0, 6) if survey == "A" else (6, 12)
+        b_off = int(getattr(cfg, "survey_b_offset", 6))
+        c_off = int(getattr(cfg, "survey_c_offset", 12))
+        if survey == "A":
+            return (0, b_off)
+        if survey == "B":
+            return (b_off, c_off)
+        return (c_off, int(cfg.num_classes))  # survey C (e.g. Penobscot)
 
     locals_by_survey = {"A": [], "B": []}
     per_class_by_survey = {"A": [], "B": []}
@@ -163,7 +177,8 @@ def main(roots=("results/runs/multisurvey", "results/runs/multisurvey_fedbn",
                 "results/runs/multisurvey_fedperbn", "results/runs/multisurvey_fedpersurvey",
                 "results/runs/multisurvey_fedlc",
                 "results/runs/multisurvey_solo_a", "results/runs/multisurvey_solo_b",
-                "results/runs/multisurvey_solo_k6_a", "results/runs/multisurvey_solo_k6_b")):
+                "results/runs/multisurvey_solo_k6_a", "results/runs/multisurvey_solo_k6_b",
+                "results/runs/multisurvey_solo_k6_c", "results/runs/multisurvey3_fedpersurvey")):
     import pandas as pd
 
     rows = []

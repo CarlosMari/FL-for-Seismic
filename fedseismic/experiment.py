@@ -211,13 +211,22 @@ def _setup_seismic(cfg, seed, rng):
 
 
 def _multisurvey_surveys(cfg):
-    """(seismic_path, labels_path, offset) for the selected surveys."""
+    """(seismic_path, labels_path, offset) for the selected surveys.
+
+    Survey A (F3) occupies rows from 0, B (Parihaka) from ``survey_b_offset``,
+    C (Penobscot) from ``survey_c_offset``. Each survey keeps its own label
+    block in the union head; the per-survey class count may differ (6/6/7).
+    """
     solo = str(getattr(cfg, "survey_solo", None) or "").strip().lower() or None
+    if solo not in (None, "a", "b", "c"):
+        raise ValueError("survey_solo must be 'a', 'b', 'c', or null")
     surveys = []
     if solo in (None, "a"):
         surveys.append((cfg.train_seismic, cfg.train_labels, 0))
     if solo in (None, "b"):
         surveys.append((cfg.survey_b_seismic, cfg.survey_b_labels, int(cfg.survey_b_offset)))
+    if solo in (None, "c") and getattr(cfg, "survey_c_seismic", None):
+        surveys.append((cfg.survey_c_seismic, cfg.survey_c_labels, int(getattr(cfg, "survey_c_offset", 12))))
     return surveys
 
 
@@ -230,7 +239,8 @@ def _multisurvey_client_info(cfg):
     infos = []
     for seismic_path, labels_path, offset in surveys:
         seismic, labels = _load_cube_pair(seismic_path, labels_path)
-        labels = np.asarray(labels).astype(int) - (1 if offset else 0) + offset
+        labels = np.asarray(labels).astype(int)
+        labels = labels - int(labels.min()) + offset
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, _ = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
@@ -249,11 +259,9 @@ def _setup_multisurvey(cfg, seed, rng):
     """
     from fedseismic.data.partition import partition_noniid
 
-    if cfg.num_classes != 12:
-        cfg.num_classes = 12
     solo = str(getattr(cfg, "survey_solo", None) or "").strip().lower() or None
-    if solo not in (None, "a", "b"):
-        raise ValueError("survey_solo must be 'a', 'b', or null")
+    if solo not in (None, "a", "b", "c"):
+        raise ValueError("survey_solo must be 'a', 'b', 'c', or null")
     surveys = _multisurvey_surveys(cfg)
     if cfg.num_clients % len(surveys) != 0:
         raise ValueError("num_clients must split evenly across the selected surveys")
@@ -261,11 +269,17 @@ def _setup_multisurvey(cfg, seed, rng):
     kwargs = _loader_kwargs(cfg)
     train_parts, loaders, client_tests = [], [], []
     tests = {}
+    max_row = 0
     for seismic_path, labels_path, offset in surveys:
         if seismic_path is None or labels_path is None:
-            raise ValueError("train_seismic/train_labels and survey_b_* paths are required")
+            raise ValueError("train_seismic/train_labels and survey_b_*/survey_c_* paths are required")
         seismic, labels = _load_cube_pair(seismic_path, labels_path)
-        labels = (np.asarray(labels).astype(int) - (1 if offset else 0) + offset)
+        labels = np.asarray(labels).astype(int)
+        # Shift each survey's labels into its own block of the union head. The
+        # label base (0- vs 1-indexed) is taken from the data so surveys with
+        # different class counts (6/6/7) map cleanly into rows [offset, ...).
+        labels = labels - int(labels.min()) + offset
+        max_row = max(max_row, int(labels.max()) + 1)
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, eparts = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
@@ -282,6 +296,9 @@ def _setup_multisurvey(cfg, seed, rng):
                 seismic, labels, num_workers=kwargs["num_workers"],
                 pin_memory=kwargs["pin_memory"],
             )
+    # Union label-space size = the highest row any survey maps into + 1
+    # (6+6+7 = 19 for F3+Parihaka+Penobscot; 12 for the two-survey case).
+    cfg.num_classes = max(int(cfg.num_classes), max_row)
     model_factory = lambda: UNet(
         1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups,
     )
