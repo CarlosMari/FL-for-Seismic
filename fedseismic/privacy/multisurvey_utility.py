@@ -53,6 +53,8 @@ def _score_deployed(model, loader, num_classes, class_block, device):
         return nan, np.full(num_classes, nan), np.zeros(num_classes, dtype=bool)
     y_pred = np.concatenate(preds)
     y_true = np.concatenate(targs)
+    keep = y_true != 255  # drop non-facies (background) pixels; see metrics.IGNORE
+    y_true, y_pred = y_true[keep], y_pred[keep]
     per = jaccard_score(y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0)
     present = np.asarray(
         [np.any(y_true == k) for k in range(num_classes)], dtype=bool

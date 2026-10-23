@@ -4,6 +4,12 @@ import numpy as np
 import torch
 from sklearn.metrics import jaccard_score
 
+# Sentinel label for pixels that are not a facies class (e.g. Penobscot's
+# overburden above the top interpreted horizon). These are ignored by the loss
+# and excluded from the metric so a survey with background is scored only on its
+# real facies (K=7 for Penobscot), comparable to surveys with no background.
+IGNORE = 255
+
 
 def _logits(output):
     return output[0] if isinstance(output, (tuple, list)) else output
@@ -66,6 +72,11 @@ def evaluate_loader(model, loader, num_classes, device="cpu"):
         return 0.0, zeros, 0.0
     y_pred = np.concatenate(predictions)
     y_true = np.concatenate(targets)
+    # Drop non-facies pixels (background/overburden) so a survey with an IGNORE
+    # region is scored only on its real facies, and background predictions do not
+    # penalize the facies classes.
+    keep = y_true != IGNORE
+    y_true, y_pred = y_true[keep], y_pred[keep]
     per_class = jaccard_score(
         y_true, y_pred, labels=list(range(num_classes)), average=None, zero_division=0,
     )

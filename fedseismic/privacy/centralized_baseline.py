@@ -62,9 +62,12 @@ def train_centralized(model, train_loader, own, cfg, device, epochs):
             if isinstance(logits, (tuple, list)):
                 logits = logits[0]
             if own.numel() < logits.shape[1]:  # masked K=6 softmax over own rows
+                bg = targets == 255  # background / non-facies pixels
                 logits = logits.index_select(1, own)
-                targets = torch.searchsorted(own, targets)
-            loss = torch.nn.functional.cross_entropy(logits, targets)
+                remap = torch.searchsorted(own, targets)
+                remap[bg] = 255
+                targets = remap
+            loss = torch.nn.functional.cross_entropy(logits, targets, ignore_index=255)
             opt.zero_grad()
             loss.backward()
             opt.step()

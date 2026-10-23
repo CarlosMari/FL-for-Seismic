@@ -44,6 +44,7 @@ class FedPerSurveyBNClientTrainer(FedPerClientTrainer):
         if labels is None:
             return None
         present = np.unique(np.asarray(labels).reshape(-1).astype(int))
+        present = present[present != 255]  # 255 == IGNORE (background), not a class
         return torch.as_tensor(present, dtype=torch.long)
 
     def train(self, global_state=None):
@@ -59,11 +60,13 @@ class FedPerSurveyBNClientTrainer(FedPerClientTrainer):
                 images = images.to(self.device, dtype=torch.float)
                 targets = targets.to(self.device, dtype=torch.long)
                 logits = _logits(self.model(images))
+                bg = targets == 255  # background / non-facies pixels
                 if own is not None and own.numel() < logits.shape[1]:
                     logits = logits.index_select(1, own)
                     remap = torch.searchsorted(own, targets)
+                    remap[bg] = 255  # keep background as IGNORE after remap
                     targets = remap
-                loss = torch.nn.functional.cross_entropy(logits, targets)
+                loss = torch.nn.functional.cross_entropy(logits, targets, ignore_index=255)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()

@@ -125,6 +125,7 @@ class RunConfig:
     survey_c_seismic: str | None = None
     survey_c_labels: str | None = None
     survey_c_offset: int = 12
+    survey_c_ignore: int = -1
     survey_solo: str | None = None
     test2_seismic: str | None = None
     test2_labels: str | None = None

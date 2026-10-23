@@ -116,7 +116,7 @@ class ClientTrainer:
                     if weight is None:
                         loss = self.criterion(logits, targets)
                     else:
-                        loss = F.cross_entropy(logits, targets, weight=weight)
+                        loss = F.cross_entropy(logits, targets, weight=weight, ignore_index=255)
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()

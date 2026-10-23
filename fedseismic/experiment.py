@@ -210,8 +210,24 @@ def _setup_seismic(cfg, seed, rng):
     return train_labels, train_parts, loaders, client_tests, tests, model_factory, None
 
 
+def _remap_survey_labels(labels, offset, ignore=-1):
+    """Shift a survey's labels into its own block of the union head.
+
+    The label base (0- vs 1-indexed) is taken from the data so surveys with
+    different class counts (6/6/7) map cleanly into rows [offset, ...). A raw
+    label equal to ``ignore`` (e.g. Penobscot's overburden) is mapped to
+    ``IGNORE`` so it is dropped by the loss and metric, not treated as a class.
+    """
+    labels = np.asarray(labels).astype(int)
+    keep = labels != int(ignore) if ignore is not None and int(ignore) >= 0 else np.ones(labels.shape, dtype=bool)
+    base = int(labels[keep].min()) if keep.any() else 0
+    out = np.full(labels.shape, 255, dtype=np.int64)  # 255 == metrics.IGNORE
+    out[keep] = labels[keep] - base + offset
+    return out
+
+
 def _multisurvey_surveys(cfg):
-    """(seismic_path, labels_path, offset) for the selected surveys.
+    """(seismic_path, labels_path, offset, ignore) for the selected surveys.
 
     Survey A (F3) occupies rows from 0, B (Parihaka) from ``survey_b_offset``,
     C (Penobscot) from ``survey_c_offset``. Each survey keeps its own label
@@ -222,11 +238,12 @@ def _multisurvey_surveys(cfg):
         raise ValueError("survey_solo must be 'a', 'b', 'c', or null")
     surveys = []
     if solo in (None, "a"):
-        surveys.append((cfg.train_seismic, cfg.train_labels, 0))
+        surveys.append((cfg.train_seismic, cfg.train_labels, 0, -1))
     if solo in (None, "b"):
-        surveys.append((cfg.survey_b_seismic, cfg.survey_b_labels, int(cfg.survey_b_offset)))
+        surveys.append((cfg.survey_b_seismic, cfg.survey_b_labels, int(cfg.survey_b_offset), -1))
     if solo in (None, "c") and getattr(cfg, "survey_c_seismic", None):
-        surveys.append((cfg.survey_c_seismic, cfg.survey_c_labels, int(getattr(cfg, "survey_c_offset", 12))))
+        surveys.append((cfg.survey_c_seismic, cfg.survey_c_labels, int(getattr(cfg, "survey_c_offset", 12)),
+                        int(getattr(cfg, "survey_c_ignore", -1))))
     return surveys
 
 
@@ -237,10 +254,9 @@ def _multisurvey_client_info(cfg):
     surveys = _multisurvey_surveys(cfg)
     per_survey = cfg.num_clients // len(surveys)
     infos = []
-    for seismic_path, labels_path, offset in surveys:
+    for seismic_path, labels_path, offset, ignore in surveys:
         seismic, labels = _load_cube_pair(seismic_path, labels_path)
-        labels = np.asarray(labels).astype(int)
-        labels = labels - int(labels.min()) + offset
+        labels = _remap_survey_labels(labels, offset, ignore)
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, _ = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
@@ -270,16 +286,14 @@ def _setup_multisurvey(cfg, seed, rng):
     train_parts, loaders, client_tests = [], [], []
     tests = {}
     max_row = 0
-    for seismic_path, labels_path, offset in surveys:
+    for seismic_path, labels_path, offset, ignore in surveys:
         if seismic_path is None or labels_path is None:
             raise ValueError("train_seismic/train_labels and survey_b_*/survey_c_* paths are required")
         seismic, labels = _load_cube_pair(seismic_path, labels_path)
-        labels = np.asarray(labels).astype(int)
-        # Shift each survey's labels into its own block of the union head. The
-        # label base (0- vs 1-indexed) is taken from the data so surveys with
-        # different class counts (6/6/7) map cleanly into rows [offset, ...).
-        labels = labels - int(labels.min()) + offset
-        max_row = max(max_row, int(labels.max()) + 1)
+        labels = _remap_survey_labels(labels, offset, ignore)
+        valid = labels[labels != 255]  # 255 == IGNORE (not a class row)
+        if valid.size:
+            max_row = max(max_row, int(valid.max()) + 1)
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, eparts = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
