@@ -107,8 +107,9 @@ def rescore_run(run_dir, device="cuda"):
             return (b_off, c_off)
         return (c_off, int(cfg.num_classes))  # survey C (e.g. Penobscot)
 
-    locals_by_survey = {"A": [], "B": []}
-    per_class_by_survey = {"A": [], "B": []}
+    locals_by_survey = {"A": [], "B": [], "C": []}
+    per_class_by_survey = {"A": [], "B": [], "C": []}
+    all_by_survey = {"A": [], "B": [], "C": []}
     per_site_rows = []
     for client, state in sorted(deployed_states.items()):
         if client >= len(data.client_tests):
@@ -136,6 +137,7 @@ def rescore_run(run_dir, device="cuda"):
         survey = _survey_of(client, per_survey, cfg.survey_solo)
         locals_by_survey[survey].append(score)
         per_class_by_survey[survey].append(per_class)
+        all_by_survey[survey].append(float(np.mean(per_class)))  # all-class (absent = 0)
         for k in range(cfg.num_classes):
             per_site_rows.append({
                 "survey": survey, "client": client, "class": k,
@@ -144,7 +146,7 @@ def rescore_run(run_dir, device="cuda"):
             })
 
     global_state = load_global_state(run_dir)
-    globals_by_survey = {"A": [], "B": []}
+    globals_by_survey = {"A": [], "B": [], "C": []}
     # FedBN/FedPerBN have no shared normalisation or shared head (shared ≡
     # deployed per the Chapter 4 convention), so their "global" is not a
     # defined reference. Skip it.
@@ -159,10 +161,12 @@ def rescore_run(run_dir, device="cuda"):
             globals_by_survey[_survey_of(client, per_survey, cfg.survey_solo)].append(score)
 
     out = {}
-    for name in ("A", "B"):
+    for name in ("A", "B", "C"):
         local = float(np.mean(locals_by_survey[name])) if locals_by_survey[name] else float("nan")
         glob = float(np.mean(globals_by_survey[name])) if globals_by_survey[name] else float("nan")
-        out[f"{name}_local_miou"] = local
+        out[f"{name}_local_miou"] = local  # present-class (appendix)
+        out[f"{name}_local_all_miou"] = (float(np.mean(all_by_survey[name]))
+                                          if all_by_survey[name] else float("nan"))  # all-class (main)
         out[f"{name}_global_on_local"] = glob
         out[f"{name}_gain"] = local - glob
         # Real per-class mIoU: mean over the survey's sites, one value per class.

@@ -27,6 +27,7 @@
   "optimizer": "adamw",
   "momentum": 0.9,
   "local_test_ratio": 0.2,
+  "spatial_holdout_buffer": 50,
   "norm": "batch",
   "norm_groups": 8,
   "device": "cuda"

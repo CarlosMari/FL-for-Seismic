@@ -94,10 +94,12 @@ def run_centralized(survey, cfg, device, seed=0):
     miou, per_class, present = _score_deployed(
         model, test_loader, cfg.num_classes, block, device
     )
+    all_miou = float(np.mean(per_class))  # all-class (absent = 0)
     return {
         "survey": str(survey).upper(),
         "model": "centralized_noFL",
         "miou": float(miou),
+        "all_miou": all_miou,
         "per_class": np.asarray(per_class, dtype=np.float64),
         "present": np.asarray(present, dtype=bool),
         "epochs": epochs,
@@ -120,7 +122,8 @@ def main():
         print(f"centralized survey {res['survey']}: miou={res['miou']:.4f} "
               f"per-class={np.round(res['per_class'], 3).tolist()}", flush=True)
         rows.append({"survey": res["survey"], "model": res["model"],
-                     "seed": args.seed, "miou": res["miou"], "epochs": res["epochs"]})
+                     "seed": args.seed, "miou": res["miou"], "all_miou": res["all_miou"],
+                     "epochs": res["epochs"]})
         for k in range(len(res["per_class"])):
             detail.append({"survey": res["survey"], "client": "pooled", "class": k,
                            "iou": float(res["per_class"][k]), "present": bool(res["present"][k]),
