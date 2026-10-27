@@ -1,0 +1,68 @@
+{
+ "run": "results/runs/seismic_f3/fedavg_noniid_a0.1_lNA_dna_n3_batchnorm/seed_0",
+ "seed": 0,
+ "device": "cuda",
+ "rows": [],
+ "operators": [
+  {
+   "operator": "Operator A",
+   "client": 0,
+   "n_holdout": 47,
+   "chosen_xline": 196,
+   "chosen_rank": "median of 47 holdout sections by per-section error (1 - present-class mIoU), of the site's own deployed model local/client_000.pt",
+   "chosen_section_miou": 0.9698,
+   "error_median": 0.0302,
+   "error_min": 0.0165,
+   "error_max": 0.0533,
+   "local_test_miou_deployed": 0.9683
+  },
+  {
+   "operator": "Operator B",
+   "client": 1,
+   "n_holdout": 47,
+   "chosen_xline": 464,
+   "chosen_rank": "median of 47 holdout sections by per-section error (1 - present-class mIoU), of the site's own deployed model local/client_001.pt",
+   "chosen_section_miou": 0.7068,
+   "error_median": 0.2932,
+   "error_min": 0.0445,
+   "error_max": 0.3143,
+   "local_test_miou_deployed": 0.7212
+  },
+  {
+   "operator": "Operator C",
+   "client": 2,
+   "n_holdout": 47,
+   "chosen_xline": 696,
+   "chosen_rank": "median of 47 holdout sections by per-section error (1 - present-class mIoU), of the site's own deployed model local/client_002.pt",
+   "chosen_section_miou": 0.9605,
+   "error_median": 0.0395,
+   "error_min": 0.0278,
+   "error_max": 0.2276,
+   "local_test_miou_deployed": 0.791
+  }
+ ],
+ "test_row": {
+  "volume": "datasets/seismic/data/test_once/test1_seismic.npy",
+  "model": "global_final.pt",
+  "n_sections": 701,
+  "chosen_xline": 256,
+  "chosen_rank": "median of 701 test sections by per-section error",
+  "chosen_section_miou": 0.7429,
+  "error_median": 0.2571,
+  "test_miou_global": 0.5879,
+  "test_per_class_iou": [
+   0.8526,
+   0.7653,
+   0.8927,
+   0.5275,
+   0.4893,
+   0.0
+  ],
+  "test2_miou_global": 0.5474
+ },
+ "triptych": {
+  "w_in": 10.922,
+  "h_in": 7.49,
+  "aspect": 1.458210947930574
+ }
+}

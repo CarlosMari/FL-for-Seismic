@@ -1,0 +1,336 @@
+{
+ "labels_cube": "datasets/seismic/data/train/train_labels.npy",
+ "shape": [
+  401,
+  701,
+  255
+ ],
+ "runs": {
+  "n3": {
+   "run": "results/runs/seismic_f3/fedavg_noniid_a0.1_lNA_dna_n3_batchnorm/seed_0",
+   "stats": [
+    {
+     "client": 0,
+     "letter": "A",
+     "block": [
+      0,
+      232
+     ],
+     "n_xlines": 233,
+     "train": [
+      0,
+      185
+     ],
+     "holdout_tail": [
+      186,
+      232
+     ],
+     "pi_train": [
+      0.260132,
+      0.12995,
+      0.463107,
+      0.093006,
+      0.053805,
+      0.0
+     ],
+     "pi_full_block": [
+      0.264944,
+      0.128351,
+      0.456768,
+      0.090708,
+      0.05923,
+      0.0
+     ],
+     "c5_pixels_full": 0.0,
+     "c5_pixels_train": 0.0,
+     "c5_map_frac": 0.0,
+     "lacks_c5_full": true,
+     "lacks_c5_train": true
+    },
+    {
+     "client": 1,
+     "letter": "B",
+     "block": [
+      233,
+      465
+     ],
+     "n_xlines": 233,
+     "train": [
+      233,
+      418
+     ],
+     "holdout_tail": [
+      419,
+      465
+     ],
+     "pi_train": [
+      0.312678,
+      0.125227,
+      0.474045,
+      0.059925,
+      0.028125,
+      0.0
+     ],
+     "pi_full_block": [
+      0.308981,
+      0.122902,
+      0.482182,
+      0.057506,
+      0.026555,
+      0.001873
+     ],
+     "c5_pixels_full": 0.0018731677916208386,
+     "c5_pixels_train": 0.0,
+     "c5_map_frac": 0.019511307567989897,
+     "lacks_c5_full": false,
+     "lacks_c5_train": true
+    },
+    {
+     "client": 2,
+     "letter": "C",
+     "block": [
+      466,
+      700
+     ],
+     "n_xlines": 235,
+     "train": [
+      466,
+      653
+     ],
+     "holdout_tail": [
+      654,
+      700
+     ],
+     "pi_train": [
+      0.262617,
+      0.101676,
+      0.50524,
+      0.060622,
+      0.015924,
+      0.053921
+     ],
+     "pi_full_block": [
+      0.268991,
+      0.10543,
+      0.51853,
+      0.051166,
+      0.012746,
+      0.043137
+     ],
+     "c5_pixels_full": 0.043136672295065424,
+     "c5_pixels_train": 0.05392084036883178,
+     "c5_map_frac": 0.21885711253780443,
+     "lacks_c5_full": false,
+     "lacks_c5_train": false
+    }
+   ],
+   "n_lacking_c5_full": 1,
+   "n_lacking_c5_train": 2,
+   "rare_classes": [
+    4,
+    5
+   ]
+  },
+  "n5": {
+   "run": "results/runs/seismic_f3/fedavg_noniid_a0.1_lNA_dna_n5_batchnorm/seed_0",
+   "stats": [
+    {
+     "client": 0,
+     "letter": "A",
+     "block": [
+      0,
+      139
+     ],
+     "n_xlines": 140,
+     "train": [
+      0,
+      111
+     ],
+     "holdout_tail": [
+      112,
+      139
+     ],
+     "pi_train": [
+      0.256506,
+      0.134087,
+      0.477424,
+      0.095033,
+      0.03695,
+      0.0
+     ],
+     "pi_full_block": [
+      0.257699,
+      0.132498,
+      0.470234,
+      0.094449,
+      0.045119,
+      0.0
+     ],
+     "c5_pixels_full": 0.0,
+     "c5_pixels_train": 0.0,
+     "c5_map_frac": 0.0,
+     "lacks_c5_full": true,
+     "lacks_c5_train": true
+    },
+    {
+     "client": 1,
+     "letter": "B",
+     "block": [
+      140,
+      279
+     ],
+     "n_xlines": 140,
+     "train": [
+      140,
+      251
+     ],
+     "holdout_tail": [
+      252,
+      279
+     ],
+     "pi_train": [
+      0.279593,
+      0.121994,
+      0.435865,
+      0.084626,
+      0.077921,
+      0.0
+     ],
+     "pi_full_block": [
+      0.283947,
+      0.122903,
+      0.437017,
+      0.083596,
+      0.072536,
+      0.0
+     ],
+     "c5_pixels_full": 0.0,
+     "c5_pixels_train": 0.0,
+     "c5_map_frac": 0.0,
+     "lacks_c5_full": true,
+     "lacks_c5_train": true
+    },
+    {
+     "client": 2,
+     "letter": "C",
+     "block": [
+      280,
+      419
+     ],
+     "n_xlines": 140,
+     "train": [
+      280,
+      391
+     ],
+     "holdout_tail": [
+      392,
+      419
+     ],
+     "pi_train": [
+      0.317436,
+      0.126258,
+      0.479824,
+      0.054806,
+      0.021677,
+      0.0
+     ],
+     "pi_full_block": [
+      0.316924,
+      0.125399,
+      0.48646,
+      0.052845,
+      0.018372,
+      0.0
+     ],
+     "c5_pixels_full": 0.0,
+     "c5_pixels_train": 0.0,
+     "c5_map_frac": 0.0,
+     "lacks_c5_full": true,
+     "lacks_c5_train": true
+    },
+    {
+     "client": 3,
+     "letter": "D",
+     "block": [
+      420,
+      559
+     ],
+     "n_xlines": 140,
+     "train": [
+      420,
+      531
+     ],
+     "holdout_tail": [
+      532,
+      559
+     ],
+     "pi_train": [
+      0.275946,
+      0.106767,
+      0.508316,
+      0.064333,
+      0.019816,
+      0.024821
+     ],
+     "pi_full_block": [
+      0.270881,
+      0.104397,
+      0.503743,
+      0.066006,
+      0.017481,
+      0.037492
+     ],
+     "c5_pixels_full": 0.037491774764768754,
+     "c5_pixels_train": 0.02482117535293419,
+     "c5_map_frac": 0.21996793729960812,
+     "lacks_c5_full": false,
+     "lacks_c5_train": false
+    },
+    {
+     "client": 4,
+     "letter": "E",
+     "block": [
+      560,
+      700
+     ],
+     "n_xlines": 141,
+     "train": [
+      560,
+      672
+     ],
+     "holdout_tail": [
+      673,
+      700
+     ],
+     "pi_train": [
+      0.269811,
+      0.105788,
+      0.521943,
+      0.042133,
+      0.013204,
+      0.047121
+     ],
+     "pi_full_block": [
+      0.275279,
+      0.10915,
+      0.531817,
+      0.035408,
+      0.010582,
+      0.037764
+     ],
+     "c5_pixels_full": 0.03776395473560571,
+     "c5_pixels_train": 0.04712139484708323,
+     "c5_map_frac": 0.1785960630339046,
+     "lacks_c5_full": false,
+     "lacks_c5_train": false
+    }
+   ],
+   "n_lacking_c5_full": 3,
+   "n_lacking_c5_train": 3,
+   "rare_classes": [
+    4,
+    5
+   ]
+  }
+ }
+}
