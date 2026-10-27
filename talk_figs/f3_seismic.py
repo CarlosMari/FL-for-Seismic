@@ -86,8 +86,8 @@ def main():
     gs = GridSpec(1, n, figure=fig, wspace=0.05)
     for j, (title, pred) in enumerate(panels):
         ax = fig.add_subplot(gs[0, j])
-        S.show_seismic(ax, sec)                    # grayscale seismic behind
-        S.overlay_facies(ax, pred, n=cfg.num_classes, alpha=0.32, contour=True)
+        S.show_seismic(ax, np.rot90(sec))          # Parihaka input is rotated 90 in the pipeline
+        S.overlay_facies(ax, np.rot90(pred), n=cfg.num_classes, alpha=0.32, contour=True)
         ax.set_title(title, fontsize=15, color=S.NAVY, pad=8)
         if j == 0:
             ax.set_ylabel("depth", fontsize=14)

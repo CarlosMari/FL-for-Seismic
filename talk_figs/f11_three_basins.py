@@ -67,6 +67,8 @@ def main():
         pred = predict_local(model, img, block)          # local 0..nc-1
         truth = tgt.numpy() - block[0]                    # local class index
         sec = img.squeeze(0).numpy()
+        if survey == 'B':   # Parihaka input is rotated 90 in the pipeline
+            sec, pred, truth = np.rot90(sec), np.rot90(pred), np.rot90(truth)
         sec_c = crop_to_aspect(sec, 1.5)
         pred_c = crop_to_aspect(pred, 1.5)
         truth_c = crop_to_aspect(truth, 1.5)

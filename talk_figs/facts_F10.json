@@ -1,0 +1,14 @@
+{
+ "run": "results/runs/seismic_f3/fedavg_noniid_a0.1_lNA_dna_n3_batchnorm/seed_0",
+ "patch": "pre-declared, center of xline 35%",
+ "steps": 300,
+ "lr": 0.15,
+ "tv_weight": 0.001,
+ "positive_control_ssim": 0.009,
+ "real_ssim": 0.0404,
+ "decoy_rank": "8/51 (1 = best)",
+ "decoy_median_ssim": 0.0259,
+ "baseline_tv_noise_ssim": 0.0312,
+ "baseline_mean_patch_ssim": 0.049,
+ "real_mse": 0.04611
+}
