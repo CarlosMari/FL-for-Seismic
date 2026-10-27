@@ -7,13 +7,14 @@ from talk_figs import style as S
 FIGS = [
     ("F1  operators + facies mix", "f1_sections_n3.png"),
     ("F2  section triptych", "f2_triptych_n3.png"),
-    ("F3  the blackout (BN)", "f3_strip.png"),
+    ("F3  the blackout (BN)", "f3_blackout_strip.png"),
     ("F4  training movie (grid)", "f4_rounds_grid.png"),
-    ("F5  fingerprint (BN logs)", "f5_sections_bnlogs.png"),
+    ("F5  fingerprint (BN logs)", "f5_fingerprint_overlay.png"),
     ("F6  who has the Zechstein", "f6_sections_n3.png"),
     ("F7  silence is a signal", "f7_silence.png"),
     ("F8  sealed totals", "f8_sealed_sum.png"),
     ("F9  what stays home", "f9_unet_keep_home.png"),
+    ("F11  one body, three basins", "f11_three_basins.png"),
 ]
 
 
