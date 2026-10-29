@@ -658,11 +658,14 @@ Solo Parihaka (K=6, 2 clients, 20 rounds, 1 seed), ONLY the data orientation dif
 that hurt performance" is NOT supported: the orientation did not cost accuracy. If anything the
 original orientation was *inflating* the number.
 
-**Interpretation (be careful):** this does NOT mean the display was right — the figures correctly
-show horizontal reflectors (that is the natural geological look). It means the MODEL is
-orientation-agnostic here: a UNet learns the facies either way. The "rotation bug" is therefore a
-DISPLAY/cosmetic issue for the figures, NOT a training-accuracy issue. The original multi-survey
-results were NOT hurt by the orientation.
+**Interpretation (be careful, CORRECTED):** the orientation DOES change accuracy (0.845 vs
+0.70 = 0.14), and the ORIGINAL (vertical) orientation is the BETTER one. So the premise that the
+rotation *hurt* performance is backwards: the non-natural orientation was, if anything, *helping*
+(likely a UNet/section-geometry preference). The correct statement is: "the input orientation
+changes accuracy by ~0.14, and the model does BETTER on the original orientation; therefore the
+'rotation bug' did not cost us accuracy, and the multi-survey results were not hurt by it."
+The figures should still be shown in the natural (horizontal) orientation for interpreters — that
+is a DISPLAY choice — but we must NOT claim the rotation fixed an accuracy problem.
 
 **Subtle caveat (rigour):** my training cube was built with `transpose(2,1,0)`, which produces
 sections equal to `np.rot90(display_section)` FLIPPED along the inline axis (verified:
