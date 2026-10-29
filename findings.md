@@ -701,3 +701,30 @@ number for limitation (b). The corrected (rotated) solo is being re-scored the s
 Present-class vs all-class inflation is 0 at this site (no absent facies) — it only inflates at
 sites that lack a class (e.g. F3 client 0 lacks Zechstein -> 0.79 all-class vs 0.95 present-class).
 Report both metrics; the inflation is site-dependent, not global.
+
+## 2026-10-29, THE ROTATION "EFFECT" WAS A BUFFER CONFOUND (bug found)
+
+The 0.14 Parihaka drop (0.845 original -> 0.7015 "rotated") is NOT a rotation effect. The
+config diff between the two solo runs shows they used DIFFERENT train/test splits:
+`spatial_holdout_buffer: orig=0 vs rot=50`. The rotated config (seismic_multisurvey_rot.json)
+inherited `spatial_holdout_buffer: 50` (the de-leak setting added earlier to
+seismic_multisurvey.json), while the original used 0. A 50-crossline gap between train and test
+= less training data + a harder (non-adjacent) test -> lower mIoU. That is the ~0.14, not the
+orientation.
+
+This CONFIRMS the advisor's symmetry argument: a UNet is transpose-symmetric (conv/BN/pool
+isotropic), so rotating the input axes cannot change accuracy by 0.14. The rotation is a
+symmetry; the buffer is the real effect.
+
+**Consequences:**
+1. The "rotation hurt performance" hypothesis is WRONG. The rotation does not change accuracy.
+2. The rotation-retrain numbers (solo 0.7015, multi2 0.724/0.719) are actually the **buffer=50
+   (de-leaked)** numbers, not "corrected-rotation" numbers. They ARE the honest, non-adjacent
+   numbers the advisor's P1 wanted — so the retrain is still useful, just for a different reason.
+3. To isolate the rotation, re-run with buffer=0 (expected ~0.845, matching the original).
+   To isolate the buffer, compare buffer 0 vs 50 at the same orientation (expected ~0.05-0.14).
+
+**Reframe:** the retraining (all runs at buffer=50) is the DE-LEAKED evaluation (the honest,
+non-adjacent split), NOT a rotation test. The rotation itself is display-only (the figures show
+the natural orientation; training is orientation-agnostic). The ~0.05 adjacency inflation measured
+earlier (buffer 5-15) is consistent with this: the buffer removes the train/test adjacency.
