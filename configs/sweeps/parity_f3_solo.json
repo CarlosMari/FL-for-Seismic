@@ -1,0 +1,27 @@
+{
+  "base": "configs/parity_f3_solo.json",
+  "output_root": "results/runs/parity_f3_solo",
+  "num_rounds": 20,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "algorithms": [
+    "fedpersurvey"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "num_clients_list": [
+    1
+  ],
+  "survey_solo": "a",
+  "oracle_reference": false,
+  "privacy_round_batches": 4,
+  "privacy_log_last_only": false,
+  "privacy_save_received": false
+}

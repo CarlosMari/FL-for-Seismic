@@ -297,6 +297,25 @@ def _setup_multisurvey(cfg, seed, rng):
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, eparts = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
+        # Optional training-pool subsample for size-matched parity experiments.
+        # Take the contiguous block of train crosslines FARTHEST from the test
+        # (test is the tail of the crossline axis, so that is the first N of the
+        # sorted train indices). Fixed subset across seeds (seed only changes
+        # init + data order).
+        subset = int(getattr(cfg, "survey_train_subset", 0) or 0)
+        if subset > 0:
+            tparts = [np.sort(np.asarray(tp))[:subset] for tp in tparts]
+        # Advisor's buffer assertion: train and test must not overlap and the
+        # closest crossline gap must exceed the buffer. Guards the earlier
+        # buffer-confound bug.
+        buf = int(getattr(cfg, "spatial_holdout_buffer", 0))
+        for tp, ep in zip(tparts, eparts):
+            tr = np.asarray(tp); te = np.asarray(ep)
+            if tr.size and te.size and buf > 0:
+                gap = int(np.min(np.abs(te[:, None] - tr[None, :])))
+                if gap <= buf:
+                    raise AssertionError(
+                        f"train/test crossline gap {gap} <= buffer {buf} (leak!)")
         train_parts.extend(tparts)
         loaders.extend(build_client_loaders(seismic, labels, tparts, cfg.batch_size, **kwargs))
         client_tests.extend(build_client_loaders(
