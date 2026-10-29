@@ -13,6 +13,9 @@ from fedseismic.eval.metrics import IGNORE
 
 
 def score(model, loader, num_classes, block, K=0):
+    n_test = len(loader.dataset)
+    if K >= n_test:
+        return float('nan'), float('nan')
     model.eval()
     preds, targs = [], []
     n = 0
