@@ -1,0 +1,24 @@
+{
+  "base": "configs/seismic_multisurvey_rot.json",
+  "output_root": "results/runs/multisurvey_fedavg_rot",
+  "num_rounds": 20,
+  "seeds": [
+    0
+  ],
+  "algorithms": [
+    "fedavg"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "num_clients_list": [
+    4
+  ],
+  "oracle_reference": false,
+  "privacy_round_batches": 4,
+  "privacy_log_last_only": false,
+  "privacy_save_received": true
+}
