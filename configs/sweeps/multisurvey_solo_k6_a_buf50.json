@@ -1,13 +1,22 @@
 {
-  "base": "configs/seismic_multisurvey.json",
+  "base": "configs/seismic_multisurvey_rot.json",
   "output_root": "results/runs/multisurvey_solo_k6_a_buf50",
   "num_rounds": 20,
-  "seeds": [0],
-  "algorithms": ["fedpersurvey"],
-  "heterogeneity": [
-    {"split": "noniid", "partition_alpha": 0.1}
+  "seeds": [
+    0
   ],
-  "num_clients_list": [2],
+  "algorithms": [
+    "fedpersurvey"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "num_clients_list": [
+    2
+  ],
   "survey_solo": "a",
   "oracle_reference": false,
   "privacy_round_batches": 4,
