@@ -774,3 +774,56 @@ A partial transpose is theoretically not a symmetry, but its practical cost here
 rotation remains a data-prep bug worth disclosing (reflectors display vertical), but it is not a
 material driver of accuracy or cross-survey interference. Kill criteria largely met (few deep split
 pairs + high activation cosine), so do NOT spend GPU re-testing orientation.
+
+## 2026-10-29, LOSS AUDIT (advisor): every loss — principled or "because we did"?
+
+SEGMENTATION — FocalDice(1:1, gamma=2, alpha=None) for the seismic runs: PRINCIPLED, keep it.
+- Compound Dice+Focal is the most robust loss family (Ma et al. 2021 "Loss Odyssey", MedIA); MONAI's
+  DiceFocalLoss default is the same 1:1. Per-class mean Dice targets per-class mIoU (our metric).
+- alpha=None is DEFENSIBLE: macro-Dice already weights classes equally; a single global alpha is
+  ill-defined under non-IID label skew; a per-site alpha would add a personalization confound.
+  (Do NOT claim RetinaNet's alpha=0.25/gamma=2 pairing for multiclass — that's binary detection.)
+- gamma=2 = Lin et al. 2017 default. NOT tuning is OK if stated: "settings fixed before experiments,
+  library defaults, identical across all FL methods; our claims are method comparisons, not absolute
+  scores." A small centralized sensitivity table (gamma in {0,2}, Dice weight in {0.5,1,2}) closes this.
+- No Lovasz/IoU loss is DEFENSIBLE: Eelbode et al. 2020 (IEEE TMI) show soft Dice ~ soft Jaccard for IoU
+  metrics. Cite Eelbode; mention Lovasz-Softmax (Berman 2018) as future work.
+- **LANDMINE (must state):** with smooth=1, Dice heavily penalizes predicting an ABSENT class -> the
+  model learns never to predict it -> the vacant-class drift that FedVLS/FedSeis then fix. So FocalDice
+  partly CREATES the problem those methods solve. Say this explicitly (and state Dice is per-image vs
+  per-batch).
+
+CLASSIFICATION — CE vs LA: principled, but one CONFOUND.
+- LA with tau=1 IS Balanced Softmax (Ren 2020) — don't present them as two alternatives.
+- Menon 2021 removes log pi at inference; we ADD it back -> local-prior re-injection. Name it that
+  ("logit-adjusted training with local prior re-injection"); it's a personalization choice.
+- **CONFOUND:** LA trains the shared weights to be prior-independent (moves the prior into local log pi).
+  That mechanism ALONE can hide the class mix, so a leak drop under LA may come from the LOSS, not the FL
+  scheme. Add a class-weighted-CE control (fixes imbalance WITHOUT separating the prior) or reword the
+  finding as a property of the loss.
+
+METHOD NAME-vs-IMPLEMENTATION (same class of issue as FedLC):
+- FedPer (Arivazhagan 2019): MATCHES. | FedBABU (Oh 2022): MATCHES (state: fine-tune head only or full).
+- **FedRoD (Chen & Chao 2022): MISMATCH.** Paper applies Balanced Softmax to the GENERIC head alone; the
+  personalized g(z)+p(z) uses plain CE; the personal head's gradient does not reach the body. We add
+  log pi to the SUM -> NOT the paper's method. Rename "FedRoD-variant" or fix the code.
+- **FedVLS (Guo 2025): MISMATCH.** The paper's 2nd term is logit SUPPRESSION (penalize non-label logits),
+  not CE(z + log freq) (=LA). + Dice makes it a segmentation adaptation. Call it "FedVLS-inspired
+  (LA + vacant distillation)".
+- **FedKPer:** confirm whether it's published; if it's ours, say so. Its KD is KL(student||teacher) =
+  REVERSE KL (matches teacher's top classes only); standard KD (Hinton 2015) is KL(teacher||student) with
+  T^2 scaling. Justify the direction or flip it. lambda=10 needs a sweep.
+- **FedSeis:** ours. Cite FedProto (Tan 2022) for the prototype alignment.
+
+RANKED CHAPTER-3 JUSTIFICATION (most->least solid):
+1. FedPer/FedBABU + CE: identical to the source papers.
+2. FocalDice 1:1, gamma=2: compound-loss robustness (Ma 2021), MONAI default, macro-Dice -> mIoU (Eelbode 2020).
+3. alpha=None: macro-Dice already balances; global alpha ill-defined under non-IID.
+4. LA (tau=1): Menon 2021 / Ren 2020; pi re-injected for local deployment.
+5. FedVLS/FedSeis: adaptations, labelled as such.
+6. FedKPer/FedRoD: FIX implementation or RENAME first.
+
+COMMITTEE QUESTIONS TO PRE-EMPT:
+Q "You optimize Dice but report IoU, and didn't tune." -> cite Eelbode 2020, state fixed-in-advance, show the small sensitivity table.
+Q "Is the leak reduction the defense or LA?" -> add class-weighted-CE control, or reword as a property of the loss.
+Q "Is this really FedRoD/FedVLS?" -> rename or fix before submission.
