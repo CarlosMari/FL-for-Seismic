@@ -36,17 +36,25 @@ def main():
     ops = "ABC"
 
     sigs = [bn_signature(run_dir, i) for i in range(3)]
-    # sort channels once by fleet-wide variance so strips are comparable
     M = np.stack(sigs)
-    order = np.argsort(-M.std(axis=0))
-    sigs = [s[order] for s in sigs]
-    # z-score each channel across operators (the deviation is the signal)
-    mu, sd = M.mean(0)[order], M.std(0)[order] + 1e-12
-    Z = [(s - mu) / sd for s in sigs]
+    mu, sd = M.mean(0), M.std(0) + 1e-12
+    Z = (M - mu) / sd                      # (3 operators, n_channels)
+    # keep the most discriminative channels, then SORT by which operator each
+    # favours -> each operator's hot bands cluster into its own block, so the
+    # fingerprints read as visibly distinct 'gel' patterns (human-readable).
+    N_SHOW = 26
+    discrim = Z.std(axis=0)
+    top = np.argsort(-discrim)[:N_SHOW]
+    Z = Z[:, top]
+    fav = np.argmax(Z, axis=0)             # which operator each channel favours
+    strength = Z.max(axis=0)
+    order = np.lexsort((strength, fav))    # group A-fav, then B-fav, then C-fav
+    Z = Z[:, order]
+    Zs = [Z[0], Z[1], Z[2], Z[1]]
 
     ncols = 4
     fig = plt.figure(figsize=(11, 6.2))
-    gs = GridSpec(2, ncols, figure=fig, height_ratios=[1.0, 2.6],
+    gs = GridSpec(2, ncols, figure=fig, height_ratios=[2.3, 1.25],
                   hspace=0.05, wspace=0.18)
 
     # thumbnails (top row) for A/B/C
@@ -84,13 +92,6 @@ def main():
                       fontsize=13, color=S.NAVY if j < 3 else "#888888")
         if j == 0:
             ax.set_ylabel("BN channel\n(network depth)", fontsize=11)
-
-    # tie-line from unknown (col 3) to B (col 1)
-    ax_un = fig.add_subplot(gs[1, 3])
-    ax_un.annotate("", xy=(0.0, n * 0.5), xytext=(-2.05, n * 0.5),
-                   arrowprops=dict(arrowstyle="-", lw=2.0, ls="--", color="#C23B22"))
-    ax_un.text(-1.05, n * 0.62, "Matched:\nOperator B", ha="center", color="#C23B22",
-               fontsize=13, weight="bold")
 
     # footer numbers
     fig.text(0.5, 0.015, "Re-identify the operator from statistics alone:  "

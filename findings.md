@@ -586,3 +586,63 @@ What stands: bias reads presence (last round, 6–9 c5 negative pairs) and withi
 ## 2026-10-14, seismic timing run
 
 Single FedAvg run, N=5 contiguous sites, 20 rounds, 61 min on the RTX 3090 (~3 min/round). Final global mIoU 0.55, global-on-local 0.70. (The deployed-local 0.98 first reported here was pixel accuracy, not mIoU — see the Oct-15 bug entry; corrected local mIoU is ~0.73.) View artifacts confirm BN running stats are captured per upload (`bn::*.running_mean/var`, needed for the statistics channel). Full grid launched: `configs/sweeps/seismic_f3.json`, 8 jobs (FedAvg/FedBN × N=3,5 × batch/group norm) × 3 seeds = 24 runs, ~20h. FedBN+group is the near-duplicate control of FedAvg+group (no BN to keep local), kept as a sanity check.
+
+## 2026-10-29, THE ROTATION BUG + reframe (advisor review; DISCLOSE in thesis)
+
+**Disclosed finding:** Parihaka was being fed to the model rotated 90° from its natural
+orientation (reflectors vertical instead of horizontal; horizontality 2.0 vs 0.5). F3 and
+Penobscot were correct; only Parihaka was affected. Because every multi-survey run shares a
+body with Parihaka, this touched all multi-survey numbers (the F3 +0.02, the Penobscot −0.38,
+the Parihaka −0.07, and the BN blackout which used the multi-survey FedAvg run). The single-
+survey privacy probes (F5 fingerprint, F6 x-ray, F7 pull) used F3-only runs and are UNAFFECTED.
+
+**Fix:** built `parihaka_*_train_rot90.npz` (cube transposed so the loader's sections come out
+with horizontal reflectors; verified horizontality 2.003 → 0.499). Retraining Parihaka solo +
+ every multi-survey run on the corrected data. **All numbers reported after 2026-10-29 are
+post-fix. State this in the thesis limitations: a rotation bug was found and fixed, and every
+reported result is post-fix.** (Disclosing it is rigour; a committee member finding it would
+sink the defense.)
+
+**Central claim (reframed — it is a BOUNDARY/LIMIT finding, not a method win):**
+> With disjoint label spaces, the only federated setup that keeps solo-level accuracy across
+> surveys keeps the head per-survey and BatchNorm local. Cross-survey body sharing gives no
+> reliable gain and can collapse a distinct survey. The parameters personalization has to share
+> (head deltas within a survey) leak which facies a site has, but not how much.
+
+fedpersurvey is the EVIDENCE behind the boundary, not the contribution.
+
+**Threat-model fix (BN re-identification):** the 0.989 site re-ID from BN running stats only
+applies when BatchNorm is SHARED (FedAvg-style). In FedBN / fedpersurvey, BN is kept local, so
+the server never sees the running stats — that leak is closed by personalization. This is a
+better story: local BN improves accuracy AND removes a privacy leak at the same time. Make it a
+central figure.
+
+**Drop / reword:** "cross-survey helps the small survey (F3 +0.02)" is WITHIN the F3 solo seed
+spread (0.771–0.804, spread 0.033 > effect 0.02). Report as "no significant gain" — do not
+claim F3 is helped. The defensible asymmetry is the HARM to large/distinct surveys (Penobscot
+collapse, Parihaka dip), not a small-survey benefit.
+
+**"Absence is loud" (reframe for sponsors):** the facies a site LACKS leaves the LARGEST head
+bias change (false positives get corrected hard). So "a site lacking the Zechstein is the
+easiest to spot." Practical risk framing for operators.
+
+## 2026-10-29, final-24h experiment plan (advisor priorities)
+- P0 (GPU queue running): retrain on corrected Parihaka — solo_PARIHAKA (done), multi
+  fedpersurvey 2-survey (running), multi fedpersurvey 3-survey (asymmetry), FedBN + FedPerBN
+  2-survey (baselines).
+- P0: re-run the BN blackout on the corrected multi checkpoint (the F3 figure used the old
+  rotated run). Privacy probes F5/F6/F7 are F3-only → no re-run needed.
+- P1 (inference, cheap): all-class re-score of everything; buffered re-score (drop the N
+  test crosslines next to the train boundary) to quantify the adjacency inflation.
+- P1: 2-3 seeds for the Penobscot solo-vs-multi collapse (rare-class collapse can be seed-dependent).
+- P2: F3 solo extra seed (settles "small survey helped" = noise).
+- P3: centralized F3 on the official Alaudah split (a benchmark anchor interpreters recognise).
+
+## 2026-10-29, limitations to state explicitly (advisor)
+- Three surveys, one architecture, contiguous-block sites (no realistic between-operator shift).
+- Seed counts per result; mark single-seed results clearly.
+- Present-class vs all-class and buffered vs unbuffered inflation numbers.
+- Absolute mIoU is not benchmark-comparable (except the P3 anchor if done).
+- Threat model: honest-but-curious server observing updates; no DP / secure aggregation evaluated.
+- The leak attacks are simple (bias deltas, BN matching) → the leaks measured are LOWER bounds.
+- Disclose the rotation bug + that all results are post-fix.

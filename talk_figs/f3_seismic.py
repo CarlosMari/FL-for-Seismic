@@ -95,6 +95,21 @@ def main():
     fig.legend(handles=handles, loc="lower center", ncol=6, fontsize=12,
                frameon=False, bbox_to_anchor=(0.5, -0.03))
     S.save(fig, "f3_blackout_strip", (3.6 * n, 3.0))
+
+    # per-method panels (separate files, same rotation) for the build animation
+    names = {"(a)  averaged BN": "f3a_averaged_bn", "(b)  local BN": "f3b_local_bn",
+             "(c)  interpretation": "f3c_truth", "(d)  FedBN": "f3d_fedbn"}
+    for title, pred in panels:
+        fn = names.get(title)
+        if not fn:
+            continue
+        f2 = plt.figure(figsize=(3.6, 3.0))
+        ax2 = f2.add_subplot(111)
+        S.show_seismic(ax2, np.rot90(sec))
+        S.overlay_facies(ax2, np.rot90(pred), n=cfg.num_classes, alpha=0.32, contour=True)
+        ax2.set_title(title, fontsize=15, color=S.NAVY, pad=8)
+        S.save(f2, fn, (3.6, 3.0))
+    print("f3 per-method panels written")
     print("f3 seismic strip written")
 
 
