@@ -728,3 +728,37 @@ symmetry; the buffer is the real effect.
 non-adjacent split), NOT a rotation test. The rotation itself is display-only (the figures show
 the natural orientation; training is orientation-agnostic). The ~0.05 adjacency inflation measured
 earlier (buffer 5-15) is consistent with this: the buffer removes the train/test adjacency.
+
+## 2026-10-29, DOES THE MIXED-ORIENTATION SHARED BODY SPLIT? (probes on a trained multi-survey ckpt)
+
+User's sharp question: we train the shared body on F3 (natural, reflectors horizontal) + Parihaka
+(rotated 90deg, reflectors vertical) = a PARTIAL transpose. Does that have a consequence for the
+conv layers even though a GLOBAL transpose is a symmetry? Advisor: the reasoning is sound (a
+partial transpose is not a symmetry -> oriented filters duplicate -> capacity cost), but the effect
+is probably SMALL (little sharing to lose between two different geologies; local BN routes
+channels cheaply; wide UNet has spare width). Ran the advisor's no-retrain probes on the trained
+multisurvey_fedpersurvey checkpoint:
+
+PROBE (a) per-channel activation profile, F3 vs Parihaka (cosine / one-survey-channel frac at 2x):
+  inc.double_conv.0            cosine=1.000  one-survey=0.02
+  inc.double_conv.3            cosine=0.968  one-survey=0.70
+  down1..double_conv.0         cosine=0.978  one-survey=0.11
+  down1..double_conv.3         cosine=0.965  one-survey=0.24
+  down2..double_conv.0         cosine=0.941  one-survey=0.24
+  down2..double_conv.3         cosine=0.948  one-survey=0.17
+  -> The activation profiles are NEARLY IDENTICAL (cosine 0.94-1.00). The shared body uses the
+     SAME channels for F3 and Parihaka. It is NOT split by orientation. (conv2 shows mild channel
+     specialization: 70% of channels differ >2x in magnitude, but the profile shape is the same.)
+
+PROBE (b) transpose-pair duplication (conv1..conv4): only conv1 has excess transpose pairs
+  (frac cos(W_i^T,W_j)>0.8 = 0.281 vs 0.156 null); conv2+ have ZERO. conv1's oriented edge-filters
+  are normal for any conv net, so this is shallow/weak evidence, not a deep orientation split.
+
+VERDICT: the mixed orientation is essentially ABSORBED by the isotropic UNet. The shared body is
+not split by orientation (high activation cosine + no deep transpose duplication). So "no
+consequence for the conv layers" is essentially CORRECT -- the multi-survey interference comes from
+the GEOLOGY (different facies), not the orientation. The advisor's "small effect" is confirmed.
+A partial transpose is theoretically not a symmetry, but its practical cost here is minor. The
+rotation remains a data-prep bug worth disclosing (reflectors display vertical), but it is not a
+material driver of accuracy or cross-survey interference. Kill criteria largely met (few deep split
+pairs + high activation cosine), so do NOT spend GPU re-testing orientation.
