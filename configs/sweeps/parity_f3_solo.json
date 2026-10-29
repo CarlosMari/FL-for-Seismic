@@ -3,9 +3,7 @@
   "output_root": "results/runs/parity_f3_solo",
   "num_rounds": 20,
   "seeds": [
-    0,
-    1,
-    2
+    0
   ],
   "algorithms": [
     "fedpersurvey"

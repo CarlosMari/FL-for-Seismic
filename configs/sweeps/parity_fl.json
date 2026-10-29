@@ -3,9 +3,7 @@
   "output_root": "results/runs/parity_fl",
   "num_rounds": 20,
   "seeds": [
-    0,
-    1,
-    2
+    0
   ],
   "algorithms": [
     "fedpersurvey"
