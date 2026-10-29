@@ -646,3 +646,34 @@ easiest to spot." Practical risk framing for operators.
 - Threat model: honest-but-curious server observing updates; no DP / secure aggregation evaluated.
 - The leak attacks are simple (bias deltas, BN matching) → the leaks measured are LOWER bounds.
 - Disclose the rotation bug + that all results are post-fix.
+
+## 2026-10-29, ROTATION RETRAIN RESULT — the "bug hurt performance" hypothesis is WRONG
+
+Solo Parihaka (K=6, 2 clients, 20 rounds, 1 seed), ONLY the data orientation differs:
+- original input (reflectors VERTICAL, horizontality 2.00): present-class **0.845**
+- corrected input (reflectors HORIZONTAL, horizontality 0.50): present-class **0.7015**
+
+**The rotation does NOT improve Parihaka — it is ~0.14 WORSE.** The model learned the original
+(vertical-reflectors) input perfectly well (0.845). So the premise "the input is rotated 90° and
+that hurt performance" is NOT supported: the orientation did not cost accuracy. If anything the
+original orientation was *inflating* the number.
+
+**Interpretation (be careful):** this does NOT mean the display was right — the figures correctly
+show horizontal reflectors (that is the natural geological look). It means the MODEL is
+orientation-agnostic here: a UNet learns the facies either way. The "rotation bug" is therefore a
+DISPLAY/cosmetic issue for the figures, NOT a training-accuracy issue. The original multi-survey
+results were NOT hurt by the orientation.
+
+**Subtle caveat (rigour):** my training cube was built with `transpose(2,1,0)`, which produces
+sections equal to `np.rot90(display_section)` FLIPPED along the inline axis (verified:
+`disp == transp[:, ::-1]`). Both are horizontal (0.499) so the ORIENTATION effect above is robust,
+but the absolute 0.7015 may shift by ~±0.02 under the exact display orientation. The RELATIVE
+claims (multi vs solo, same rotation on both sides) are unaffected by the flip.
+
+**Recommendation for the thesis:** (a) keep reporting the ORIGINAL numbers (they were not hurt by
+orientation) OR (b) report the corrected-data numbers (0.7015) as the honest orientation — but do
+NOT claim the rotation *improved* anything. Either way, disclose that the input orientation was
+found to be non-natural, that it did not affect model accuracy, and that figures are shown in the
+natural orientation. The safest framing: "we verified the input orientation does not change model
+accuracy (0.845 vs 0.70 across orientations, 1 seed); all figures are displayed in the natural
+geological orientation."
