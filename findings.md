@@ -680,3 +680,24 @@ found to be non-natural, that it did not affect model accuracy, and that figures
 natural orientation. The safest framing: "we verified the input orientation does not change model
 accuracy (0.845 vs 0.70 across orientations, 1 seed); all figures are displayed in the natural
 geological orientation."
+
+## 2026-10-29, honest re-score: quantifying the inflations (advisor P1)
+
+`talk_figs/rescore_honest.py` re-scores checkpoints dropping K test crosslines next to the
+train boundary (buffer) and reporting all-class alongside present-class. Parihaka solo
+(un-rotated, site 0), present-class = all-class (all 6 classes present at this site, so no
+present-class inflation here — that inflation only bites at sites with an absent facies):
+
+| buffer K (test xlines dropped) | present-class | all-class |
+|---|---|---|
+| 0 (contiguous holdout) | 0.839 | 0.839 |
+| 5 | 0.812 | 0.812 |
+| 10 | 0.796 | 0.796 |
+
+**Adjacency inflation ≈ 0.027 (K=5) to 0.044 (K=10).** So the contiguous train/test holdout
+inflates Parihaka solo by ~0.03-0.04; a buffer of ~10 test crosslines removes it. This is the
+number for limitation (b). The corrected (rotated) solo is being re-scored the same way.
+
+Present-class vs all-class inflation is 0 at this site (no absent facies) — it only inflates at
+sites that lack a class (e.g. F3 client 0 lacks Zechstein -> 0.79 all-class vs 0.95 present-class).
+Report both metrics; the inflation is site-dependent, not global.
