@@ -16,7 +16,7 @@
   "partition_alpha": 0.1,
   "num_rounds": 20,
   "local_epochs": 3,
-  "batch_size": 4,
+  "batch_size": 2,
   "lr": 0.001,
   "weight_decay": 0.0001,
   "num_classes": 12,
