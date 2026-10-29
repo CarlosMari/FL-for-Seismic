@@ -1,3 +1,15 @@
+> **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
+> The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
+> It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class
+> log-prior), with `log pi` re-applied at local inference. This is the logit-adjustment /
+> balanced-softmax form (Menon et al., 2021; Ren et al., 2020, tau=1). FedLC instead subtracts a
+> class-count MARGIN `tau*n_c^{-1/4}` (its Eq. 7), leaves the true class out of the denominator,
+> and predicts with raw logits. We do NOT use FedLC and do not claim to reproduce it.
+> - Thesis name: **LA** (logit-adjusted local training). Cite Menon 2021 / Ren 2020 as the source,
+>   Zhang 2022 (FedLC) as related work, Chen & Chao 2022 (FedRoD) as the closest federated form.
+> - Run/table identifiers still say `fedlc`; they mean LA. Kept as-is to match saved runs.
+> - LA (logit_adjust) is NOT used in the seismic experiments (logit_adjust=False there).
+
 # Findings
 
 Question: can a client keep a model that fits its own mix of classes without the update it sends telling the server that mix?

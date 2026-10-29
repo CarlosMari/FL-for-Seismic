@@ -48,7 +48,7 @@ accuracy, because each client's holdout is mostly its own majority classes.
 holdout (`local_test_ratio`, default 0.2, disjoint from its train indices).
 Average those client scores. FedPer, FedBABU, and FedRoD are scored from the
 saved personal head. The upload file for FedPer has the global classifier put
-back. FedLC adds `log π` again at this local score only. FedBABU's reported
+back. LA (logit-adjusted local training, mislabelled `FedLC` in old runs) adds `log π` again at this local score only. Not FedLC (Zhang 2022). FedBABU's reported
 value is the classifier fit after the last round. FedRoD's is the sum of the
 generic head and the personal residual.
 

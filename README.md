@@ -5,7 +5,7 @@
 This repo studies what a client's model updates reveal about its data
 composition in cross-silo federated learning: class counts ("how much"),
 which classes are present (support), and how personalization methods
-(FedAvg, FedPer, FedLC, FedBABU, FedRoD, FedKPer, Ditto, balanced gradients)
+(FedAvg, FedPer, LA [logit-adjusted, mislabelled FedLC], FedBABU, FedRoD, FedKPer, Ditto, balanced gradients)
 change that leakage — on BloodMNIST, OrganCMNIST, CIFAR-10, and the F3
 Netherlands seismic survey. `findings.md` is the lab notebook (dated
 prediction-vs-outcome entries); `metrics.md` defines every score;
@@ -57,7 +57,7 @@ python -m fedseismic.privacy.fingerprint --roots results/runs/fingerprint_blood 
 Key grids: `balanced_{blood,organc,cifar}.json` (balanced gradients),
 `sums_blood{,_fedlc}.json` (few-silo encrypted sums, N=2/3/5/8),
 `fingerprint_blood{,_fedlc}.json` (cohort recovery, 10 clients 3/round),
-`prior_smooth_{blood,organc,cifar}.json` (FedLC→FedAvg λ curve),
+`prior_smooth_{blood,organc,cifar}.json` (LA→FedAvg λ curve; LA = logit adjustment, not FedLC),
 `seismic_f3.json` (F3 UNet, FedAvg/FedBN × batch/group norm).
 Observers are always explicit: server-individual, server-sum, peer-sum.
 Method-aware shadows (victim's exact trainer from a saved received model)
