@@ -21,7 +21,8 @@ def score(model, loader, num_classes, block, K=0):
             if n < K:
                 n += 1
                 continue
-            lg = model(img.float())[0] if isinstance(model(img.float()), (tuple, list)) else model(img.float())
+            out = model(img.float())
+            lg = out[0] if isinstance(out, (tuple, list)) else out
             lg = lg[:, block[0]:block[1]].clone()
             preds.append(lg.argmax(1).cpu().numpy().ravel() + block[0])
             targs.append(np.asarray(tgt).ravel())

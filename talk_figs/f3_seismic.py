@@ -6,6 +6,7 @@ overlay collapses to one facies (the blackout) and no longer tracks the
 seismic; (b) local BN -> recovered, tracks the structure; (c) interpretation;
 (d) FedBN. This reads instantly as "averaged BN loses the geology".
 """
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -40,9 +41,16 @@ def reestimate_bn(model, train_loader, device="cpu"):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--run", default="results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_0")
+    ap.add_argument("--base", default="configs/seismic_multisurvey.json")
+    ap.add_argument("--fedbn", default="results/runs/multisurvey_fedbn/fedbn_noniid_a0.1_lNA_dna_n4/seed_0")
+    ap.add_argument("--tag", default="f3")
+    a = ap.parse_args()
+    RUN, FEDBN = a.run, a.fedbn
     run = "results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_0"
-    fedbn_run = "results/runs/multisurvey_fedbn/fedbn_noniid_a0.1_lNA_dna_n4/seed_0"
-    meta = load_meta(run)
+    FEDBN = "results/runs/multisurvey_fedbn/fedbn_noniid_a0.1_lNA_dna_n4/seed_0"
+    meta = load_meta(RUN)
     cfg = RunConfig.from_mapping(meta["config"])
     data = build_federated_run(cfg, 0)
 
@@ -54,7 +62,7 @@ def main():
     truth = tgt.numpy()
 
     device = "cpu"
-    glob = load_global_state(run)
+    glob = load_global_state(RUN)
 
     # (a) averaged BN = global as-is
     m_a = UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups)
@@ -70,7 +78,7 @@ def main():
     # (d) FedBN deployed
     m_d = UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups)
     try:
-        fedbn_local = load_local_states(fedbn_run)[client]
+        fedbn_local = load_local_states(FEDBN)[client]
         m_d.load_state_dict(fedbn_local)
         pred_d = predict_masked(m_d, img, device)
     except Exception:
