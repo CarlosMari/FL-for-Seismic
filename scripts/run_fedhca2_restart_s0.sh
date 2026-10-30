@@ -18,6 +18,7 @@ if [[ ! -d "$logdir" || -e "$logdir/train.log" ]]; then
   echo "Log directory must exist and contain no train.log: $logdir" >&2
   exit 1
 fi
+echo "$$" >"$logdir/supervisor.pid"
 gpu_pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
 if [[ -n "${gpu_pids//[[:space:]]/}" ]]; then
   echo "GPU already in use by $gpu_pids" >&2
