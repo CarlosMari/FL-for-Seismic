@@ -230,6 +230,17 @@ class TestSmokeRun(unittest.TestCase):
 
 
 class TestCompareTable(unittest.TestCase):
+    def test_restart_root_is_selected_for_fedhca2(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / "multisurvey3_k3_fedhca2/cell/seed_0"
+            new = root / "multisurvey3_k3_fedhca2_restart_s0/cell/seed_0"
+            for path in (old, new):
+                path.mkdir(parents=True)
+                (path / "results.json").write_text("{}")
+            runs = list(compare.runs_for("fedhca2", root, "multisurvey3_k3_fedhca2_restart_s0"))
+            self.assertEqual(runs, [new])
+
     def test_all_class_uses_survey_block_not_union(self):
         scored = {
             "A_local_miou": 0.5, "B_local_miou": float("nan"),

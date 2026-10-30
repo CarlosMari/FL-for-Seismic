@@ -6,22 +6,29 @@ cd "$(dirname "$0")/.."
 export PYTHONPATH="$PWD"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-parent=${1:?pass the three-survey pilot process ID}
-while kill -0 "$parent" 2>/dev/null; do
-  state=$(ps -o stat= -p "$parent" 2>/dev/null || true)
-  [[ "$state" == Z* ]] && break
-  sleep 60
-done
+parent=${1:?pass the pilot process ID, or 0 after the pilot completes}
+if [[ "$parent" != 0 ]]; then
+  while kill -0 "$parent" 2>/dev/null; do
+    state=$(ps -o stat= -p "$parent" 2>/dev/null || true)
+    [[ "$state" == Z* ]] && break
+    sleep 60
+  done
+fi
 
 for arm in fedhca2 fedpersurvey solo_a solo_b solo_c; do
-  root="results/runs/multisurvey3_k3_${arm}"
+  if [[ "$arm" == fedhca2 && -n "${FEDHCA2_OUTPUT_ROOT:-}" ]]; then
+    root="results/runs/$FEDHCA2_OUTPUT_ROOT"
+  else
+    root="results/runs/multisurvey3_k3_${arm}"
+  fi
   if [[ $(find "$root" -path '*/seed_0/results.json' -type f 2>/dev/null | wc -l) -ne 1 ]]; then
     echo "Three-survey seed-0 arm $arm is incomplete; parity not started" >&2
     exit 1
   fi
 done
+table_dir=${PILOT_TABLE_DIR:-results/tables}
 for table in multisurvey3_k3_runs.csv multisurvey3_k3_per_class.csv; do
-  [[ -s "results/tables/$table" ]] || { echo "Missing $table; parity not started" >&2; exit 1; }
+  [[ -s "$table_dir/$table" ]] || { echo "Missing $table; parity not started" >&2; exit 1; }
 done
 gpu_pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
 if [[ -n "${gpu_pids//[[:space:]]/}" ]]; then
