@@ -109,6 +109,20 @@
 > raw/effective weights and saturation alongside per-survey/per-class scores.
 > Do not tune on the holdout or claim an improvement from saturation alone.
 > The lower-rate variant is not automatically run before the control is reviewed.
+>
+> **RESTART (30 Oct 2026):** The original-rate control was restarted at
+> 21:06 UTC, seed 0, in `results/runs/multisurvey3_k3_fedhca2_restart_s0`.
+> The interrupted seven-round directory is preserved. The restart records
+> raw/effective hyperweights and uses atomic round-boundary checkpoints with
+> server/client/aggregator, momentum, RNG, source/data and split fingerprints.
+> Synthetic CPU uninterrupted-vs-resumed and small CUDA tolerance tests passed;
+> the first checkpoint on the actual seismic data remains to be verified.
+> Durable logs and a thermal supervisor are under
+> `results/logs/fedhca2_restart_s0_s637bpdo`. The supervisor does not modify GPU
+> power settings and stops the worker if temperature reaches 95°C or is at or
+> above 93°C for three consecutive readings. A fail-closed handoff is queued for
+> the seed-0 comparison arms and then the corrected two-survey rerun; it will
+> not start them if the control fails or the GPU fails to cool.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
