@@ -155,6 +155,9 @@ class TestAggregator(unittest.TestCase):
         agg.step(second)
         self.assertAlmostEqual((alpha0[0] - agg.alpha[0]).item(), alpha.grad[0].item(), places=2)
         self.assertAlmostEqual((beta0[1] - agg.beta[layer][1]).item(), beta_grad, places=2)
+        logged = agg.weights()
+        self.assertAlmostEqual(logged["alpha_effective"][0], float(agg.alpha[0].detach().clamp(0, 1)))
+        self.assertIn("alpha", logged["hyper_gradients_before_clamp_mask"])
 
 
 def _cube(path_x, path_y, low, high, seed, ignore=None):

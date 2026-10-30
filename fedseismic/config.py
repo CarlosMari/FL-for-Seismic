@@ -134,6 +134,8 @@ class RunConfig:
     fedhca2_hyper_lr: float = 0.01
     fedhca2_hyper_momentum: float = 0.9
     fedhca2_hyper_weight_decay: float = 1e-4
+    save_round_checkpoint: bool = False
+    resume_round_checkpoint: str | None = None
     test2_seismic: str | None = None
     test2_labels: str | None = None
     validation_seismic: str | None = None

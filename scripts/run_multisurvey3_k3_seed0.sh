@@ -60,6 +60,12 @@ git diff --quiet HEAD -- "${tracked[@]}"
 
 config_dir=$(mktemp -d /tmp/opencode/multisurvey3_k3_s0.XXXXXX)
 for arm in fedhca2 fedpersurvey solo_a solo_b solo_c; do
+  if [[ "$arm" == fedhca2 && -n "${FEDHCA2_OUTPUT_ROOT:-}" ]]; then
+    matches=$(find "results/runs/$FEDHCA2_OUTPUT_ROOT" -path '*/seed_0/results.json' -type f 2>/dev/null | wc -l)
+    [[ "$matches" -eq 1 ]] || { echo "FedHCA2 restart is incomplete" >&2; exit 1; }
+    echo "Using completed FedHCA2 restart: $FEDHCA2_OUTPUT_ROOT"
+    continue
+  fi
   original="configs/sweeps/multisurvey3_k3_${arm}.json"
   config="$config_dir/${arm}.json"
   .venv/bin/python - "$original" "$config" <<'PY'
@@ -75,6 +81,11 @@ PY
   .venv/bin/python -m fedseismic.cli sweep --config "$config" --device cuda --skip-attack
 done
 echo "Seed-0 training complete; rescoring: $(date -Is)"
-.venv/bin/python scripts/compare_multisurvey3_k3.py --device cuda
+if [[ -n "${FEDHCA2_OUTPUT_ROOT:-}" ]]; then
+  .venv/bin/python scripts/compare_multisurvey3_k3.py --device cuda \
+    --fedhca2-root "$FEDHCA2_OUTPUT_ROOT" --out-dir results/tables/multisurvey3_k3_restart_s0
+else
+  .venv/bin/python scripts/compare_multisurvey3_k3.py --device cuda
+fi
 echo "Seed-0 comparison complete: $(date -Is)"
 echo "NOTE: miou_all_class uses the survey's own class block; miou_union_all_class includes the full union."

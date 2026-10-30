@@ -99,6 +99,17 @@
 > and weight decay can still move raw weights; do not assume they can never
 > return to the interval.
 
+> **HYPERWEIGHT FOLLOW-UP PLAN (30 Oct 2026, before restart):** Restart the
+> original seed-0 control with hyperweight learning rate 0.01 in a new root.
+> Separately pre-specify an exploratory seed-0 rate 0.0001 with identical
+> training data, architecture, remaining hyperparameters and scoring; its root
+> is distinct. The 100× reduction is a heuristic motivated by the observed
+> oversized first update, not a demonstrated accuracy improvement or a proven
+> consequence of the local learning-rate ratio. Report the raw gradients,
+> raw/effective weights and saturation alongside per-survey/per-class scores.
+> Do not tune on the holdout or claim an improvement from saturation alone.
+> The lower-rate variant is not automatically run before the control is reviewed.
+
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
 > It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class

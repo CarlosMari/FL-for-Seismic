@@ -555,8 +555,20 @@ def _run_seed(cfg, seed):
         seed_dir = Path(cfg.output_dir)
         if seed_dir.name != f"seed_{seed}":
             seed_dir = seed_dir / f"seed_{seed}"
+        if ((cfg.save_round_checkpoint or cfg.resume_round_checkpoint) and
+                seed_dir.exists() and any(seed_dir.iterdir())):
+            raise ValueError("checkpointed runs must use a new, empty output directory")
         logger = _privacy_logger(cfg, seed_dir)
         if logger is not None:
+            if cfg.save_round_checkpoint or cfg.resume_round_checkpoint:
+                from datetime import datetime, timezone
+                from .federated.round_checkpoint import source_fingerprint
+
+                with (seed_dir / "run_meta_start.json").open("x", encoding="utf-8") as handle:
+                    json.dump({"started_at": datetime.now(timezone.utc).isoformat(),
+                               "seed": int(seed), "git_head": git_head, "git_dirty": git_dirty,
+                               "source_fingerprint": source_fingerprint(), "config": cfg.to_dict()},
+                              handle, indent=2)
             logger.write_ground_truth(
                 [info["class_fracs"] for info in data.client_info],
                 rare_classes=cfg.rare_classes,
@@ -569,6 +581,8 @@ def _run_seed(cfg, seed):
         rng=np.random.RandomState(seed), probe_loader=data.probe_loader,
         privacy_logger=logger, public_loader=data.public_loader,
     )
+    server.run_git_head = git_head
+    server.run_seed = int(seed)
     history = server.run()
     measured = [record.miou_final for record in history if record.miou_final is not None]
     final = float(measured[-1]) if measured else float("nan")
@@ -618,6 +632,8 @@ def _run_seed(cfg, seed):
 def run(cfg: RunConfig, seeds=None) -> SeedResults:
     """Run one configuration for every requested seed."""
     seeds = list(seeds if seeds is not None else [cfg.seed])
+    if cfg.resume_round_checkpoint and len(seeds) != 1:
+        raise ValueError("a round checkpoint can resume exactly one seed")
     results = [_run_seed(cfg, seed) for seed in seeds]
     return SeedResults(
         miou_final=[item[0] for item in results],

@@ -480,8 +480,27 @@ class Server:
         return None
 
     def run(self):
-        for round_index in range(self.config.num_rounds):
+        checkpoint_enabled = bool(getattr(self.config, "save_round_checkpoint", False))
+        resume_path = getattr(self.config, "resume_round_checkpoint", None)
+        start_round = 0
+        if checkpoint_enabled or resume_path:
+            if self.config.algorithm != "fedhca2" or self.privacy_logger is None:
+                raise ValueError("round checkpointing requires FedHCA2 and an output directory")
+            if (not self.config.privacy_log_last_only or self.config.privacy_save_local or
+                    self.config.privacy_save_received):
+                raise ValueError("round checkpointing requires last-only logs and no saved local/received uploads")
+            from .round_checkpoint import (dataset_fingerprints, load_round_checkpoint,
+                                           save_round_checkpoint, source_fingerprint)
+
+            self.source_fingerprint = source_fingerprint()
+            self.dataset_fingerprints = dataset_fingerprints(self.config)
+            if resume_path:
+                start_round = load_round_checkpoint(self, resume_path, getattr(self, "run_git_head", None))
+            checkpoint_path = self.privacy_logger.run_dir / "round_checkpoint.pt"
+        for round_index in range(start_round, self.config.num_rounds):
             self.run_round(round_index)
+            if checkpoint_enabled:
+                save_round_checkpoint(self, checkpoint_path, getattr(self, "run_git_head", None))
         if self.config.algorithm == "fedbabu":
             for client, trainer in self._client_trainers.items():
                 trainer.download(self.model.state_dict())

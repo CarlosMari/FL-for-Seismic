@@ -114,6 +114,7 @@ class FedHCA2Aggregator:
         ]
         self._encoder_update = None
         self._decoder_updates = None
+        self._hyper_gradients = None
 
     @classmethod
     def from_config(cls, initial_state, config):
@@ -141,6 +142,10 @@ class FedHCA2Aggregator:
         self.alpha.grad = alpha_grad * _inside_unit(self.alpha.detach())
         for layer in self.layers:
             self.beta[layer].grad = beta_grad[layer] * _inside_unit(self.beta[layer].detach())
+        self._hyper_gradients = {
+            "alpha": alpha_grad.detach().tolist(),
+            "beta": {layer: beta_grad[layer].detach().tolist() for layer in self.layers},
+        }
         self.optimizer.step()
 
     def step(self, trained):
@@ -192,7 +197,44 @@ class FedHCA2Aggregator:
         return {
             "alpha": self.alpha.detach().tolist(),
             "beta": {layer: self.beta[layer].detach().tolist() for layer in self.layers},
+            "alpha_effective": torch.clamp(self.alpha.detach(), 0.0, 1.0).tolist(),
+            "beta_effective": {
+                layer: torch.clamp(self.beta[layer].detach(), 0.0, 1.0).tolist()
+                for layer in self.layers
+            },
+            "hyper_gradients_before_clamp_mask": self._hyper_gradients,
         }
+
+    def checkpoint_state(self):
+        """Complete CPU state needed to continue the adaptive server update."""
+        return {
+            "num_clients": self.num_clients,
+            "encoder_keys": self.encoder_keys,
+            "decoder_keys": self.decoder_keys,
+            "alpha": self.alpha.detach().clone(),
+            "beta": {layer: self.beta[layer].detach().clone() for layer in self.layers},
+            "optimizer": self.optimizer.state_dict(),
+            "last": self._last,
+            "encoder_update": self._encoder_update,
+            "decoder_updates": self._decoder_updates,
+            "hyper_gradients": self._hyper_gradients,
+        }
+
+    def restore_checkpoint_state(self, state):
+        if (state["num_clients"] != self.num_clients or
+                state["encoder_keys"] != self.encoder_keys or
+                state["decoder_keys"] != self.decoder_keys or
+                set(state["beta"]) != set(self.beta)):
+            raise ValueError("FedHCA2 checkpoint model or client layout does not match")
+        with torch.no_grad():
+            self.alpha.copy_(state["alpha"])
+            for layer in self.layers:
+                self.beta[layer].copy_(state["beta"][layer])
+        self.optimizer.load_state_dict(state["optimizer"])
+        self._last = state["last"]
+        self._encoder_update = state["encoder_update"]
+        self._decoder_updates = state["decoder_updates"]
+        self._hyper_gradients = state.get("hyper_gradients")
 
 
 class FedHCA2ClientTrainer(FedPerSurveyBNClientTrainer):

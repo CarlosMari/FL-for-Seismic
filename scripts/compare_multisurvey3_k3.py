@@ -22,8 +22,9 @@ SURVEYS = {"A": "F3", "B": "Parihaka", "C": "Penobscot"}
 CLASS_BLOCKS = {"A": (0, 6), "B": (6, 12), "C": (12, 19)}
 
 
-def runs_for(arm, runs_root):
-    for root in ARMS[arm]:
+def runs_for(arm, runs_root, fedhca2_root=None):
+    roots = (fedhca2_root,) if arm == "fedhca2" and fedhca2_root else ARMS[arm]
+    for root in roots:
         for run in sorted((Path(runs_root) / root).glob("*/seed_*")):
             if (run / "results.json").is_file():
                 yield run
@@ -81,11 +82,13 @@ def main(argv=None):
     parser.add_argument("--runs-root", default="results/runs")
     parser.add_argument("--out-dir", default="results/tables")
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--fedhca2-root", default=None,
+                        help="run-root name for a non-overwriting FedHCA2 restart")
     args = parser.parse_args(argv)
 
     rows, per_class = [], []
     for arm in ARMS:
-        for run in runs_for(arm, args.runs_root):
+        for run in runs_for(arm, args.runs_root, args.fedhca2_root):
             seed = json.loads((run / "run_meta.json").read_text())["seed"]
             print(f"rescore {arm} {run}", flush=True)
             scored = rescore_run(run, device=args.device)

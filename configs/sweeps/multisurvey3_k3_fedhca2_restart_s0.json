@@ -1,0 +1,12 @@
+{
+  "base": "configs/seismic_multisurvey3_k3_recoverable.json",
+  "output_root": "results/runs/multisurvey3_k3_fedhca2_restart_s0",
+  "num_rounds": 20,
+  "seeds": [0],
+  "algorithms": ["fedhca2"],
+  "heterogeneity": [{"split": "noniid", "partition_alpha": 0.1}],
+  "num_clients_list": [3],
+  "oracle_reference": false,
+  "privacy_log_last_only": true,
+  "privacy_save_received": false
+}
