@@ -123,6 +123,15 @@
 > above 93°C for three consecutive readings. A fail-closed handoff is queued for
 > the seed-0 comparison arms and then the corrected two-survey rerun; it will
 > not start them if the control fails or the GPU fails to cool.
+>
+> **FIRST REAL-DATA CHECKPOINT (30 Oct 2026):** Round 1 completed and the
+> 1,090,886,563-byte checkpoint loaded on CPU with `weights_only=True`. It
+> contains all three client states, aggregator last/encoder/decoder state,
+> seed 0, CPU and one CUDA RNG state, 10 data hashes, six split hashes, the
+> recorded round history and hyperweight log. Its source fingerprint matched
+> the current package. This verifies the saved file's contents and readability;
+> it is not a full real-data interruption-and-resume test. That equivalence was
+> tested on synthetic CPU and small CUDA runs only.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
