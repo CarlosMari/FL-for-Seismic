@@ -35,6 +35,26 @@
 > and personal-head restoration. This checks the specific head-collapse issue;
 > it is not proof that the whole FedHCA2-style implementation is correct.
 
+> **PILOT AUDIT (30 Oct 2026):** The three-survey FedHCA2-style arm started
+> before the head/subset fixes, but its algorithm uses a different aggregation
+> path and does not select a training subset. The corrected fedpersurvey and
+> solo baselines will start from a later commit; record this version difference.
+> The FedHCA2 checkpoint is post-aggregation whereas the fedpersurvey personal
+> checkpoint is the last locally trained state; this deployment-point difference
+> limits direct attribution to aggregation alone. All runs have disjoint
+> train/test indices, but min-max normalization uses the full survey cube,
+> including unlabeled test inputs; do not describe preprocessing as leakage-free.
+> The three-survey and two-survey protocols also use different Parihaka
+> orientations. Never compare their raw scores as if everything else matched.
+>
+> At round 2, logged **raw** FedHCA2 encoder hyperweights were approximately
+> `[5.78, 4.53, 1.78]`. The implementation clamps their effective values to 1
+> during aggregation; two of 36 logged decoder weights also exceeded 1. This
+> saturation is a diagnostic, not by itself proof of a failed run. Log and
+> interpret the raw/effective distinction; review the trajectory before making
+> claims. `history.jsonl`'s FedHCA2 global score is a placeholder, not a valid
+> deployed-model score.
+
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
 > It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class
