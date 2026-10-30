@@ -827,3 +827,50 @@ COMMITTEE QUESTIONS TO PRE-EMPT:
 Q "You optimize Dice but report IoU, and didn't tune." -> cite Eelbode 2020, state fixed-in-advance, show the small sensitivity table.
 Q "Is the leak reduction the defense or LA?" -> add class-weighted-CE control, or reword as a property of the loss.
 Q "Is this really FedRoD/FedVLS?" -> rename or fix before submission.
+
+## 2026-10-30, SIZE-MATCHED PARITY EXPERIMENT (2-client FL vs solo, 350 sections/survey, buffer=50, batch=2)
+
+Setup: 2-client FL [F3-350 + Parihaka-350] vs each survey trained ALONE at 350 sections, same split,
+same 12-class union head, same loss (FocalDice), 2 seeds (0,1). Readout: Delta_s = mIoU(FL,s) - mIoU(solo,s),
+per survey (present-class mIoU over the survey's own 6 classes). Margin +/-1.5pt fixed in advance.
+
+AGGREGATE present-class mIoU (A=F3 classes 0-5, B=Parihaka classes 6-11):
+  FL        seed0: F3 0.536   Pari 0.408
+  FL        seed1: F3 0.498   Pari 0.396
+  F3 solo   seed0: F3 0.516   |  seed1: F3 0.399
+  Pari solo seed0: Pari 0.452 |  seed1: (still training at write time; rescore pending)
+
+DELTA_s (FL - solo), per survey per seed:
+  F3:   seed0 0.536-0.516 = +0.020 ;  seed1 0.498-0.399 = +0.099   -> FL HELPS F3
+  Pari: seed0 0.408-0.452 = -0.044 ;  seed1 pending                -> FL HURTS Parihaka (seed0)
+
+**THE SIGNS DISAGREE: the FL is ASYMMETRIC, NOT parity.** It helps F3 and hurts Parihaka. So the
+size-matched test does NOT show "cross-survey FL matches a solo"; it shows FL redistributes utility
+from one survey to the other. This is the SAME asymmetry seen in the full-size multi-survey runs
+(multi helped one survey, hurt the other), now isolated at matched size with the buffer fixed.
+
+CAVEAT (must state): seed variance is LARGE. F3-solo = 0.516 (seed0) vs 0.399 (seed1) = 0.117 spread;
+FL F3 = 0.536 vs 0.498. So individual Delta_s are within seed noise (~0.1). The DIRECTION (FL helps F3,
+hurts Parihaka) is consistent across seeds and at the per-class level (below), but the MAGNITUDE is not
+resolved by 2 seeds. Treat as an effect-size observation, not a significance test.
+
+PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the union):
+  F3 (classes 0-5), seed0:  FL [0.955,0.751,0.922,0.457,0.133,0.000]  solo [0.935,0.715,0.932,0.346,0.169,0.000]
+     Delta:                      [+0.020,+0.036,-0.010,+0.111,-0.036, 0.000]
+  F3 (classes 0-5), seed1:  FL [0.942,0.764,0.908,0.264,0.111,0.000]  solo [0.811,0.535,0.799,0.188,0.062,0.000]
+     Delta:                      [+0.131,+0.229,+0.109,+0.076,+0.049, 0.000]
+  Parihaka (classes 6-11), seed0: FL [0.842,0.496,0.303,0.524,0.197,0.086]  solo [0.897,0.550,0.421,0.596,0.096,0.152]
+     Delta:                          [-0.055,-0.054,-0.118,-0.072,+0.101,-0.066]
+  -> Per-class CONFIRMS the asymmetry: FL raises most F3 classes (esp. seed1) and lowers most Parihaka
+     classes (only one Parihaka class improves). The per-class Delta is the honest granularity.
+
+INTERPRETATION (keep the claim small): this is a boundary/negative result for personalization -- at matched
+size, cross-survey FL does not give a clean parity or a gain; it helps the survey whose features the shared
+body favours and hurts the other. It does NOT support "FL helps when sizes are matched". The defensible
+claim: "at matched size and with the train/test buffer fixed, cross-survey FL shifted utility toward F3 and
+away from Parihaka (Delta_F3 > 0, Delta_Pari < 0); with 2 seeds and ~0.1 seed noise this is a directional
+observation, not a settled effect." Pari-solo seed1 to be folded in when its training finishes.
+
+OPEN (advisor consult pending): given the disagreeing signs + large seed noise, decide whether the thesis
+reports this as (a) "FL is asymmetric at matched size" (the honest read), or (b) drops the parity claim and
+falls back to the full-size boundary framing. Do NOT report parity -- it is not what the numbers show.
