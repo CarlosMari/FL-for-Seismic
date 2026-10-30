@@ -1,0 +1,26 @@
+{
+  "base": "configs/seismic_multisurvey3_k3.json",
+  "output_root": "results/runs/multisurvey3_k3_solo_c",
+  "num_rounds": 20,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "algorithms": [
+    "fedpersurvey"
+  ],
+  "heterogeneity": [
+    {
+      "split": "noniid",
+      "partition_alpha": 0.1
+    }
+  ],
+  "num_clients_list": [
+    1
+  ],
+  "survey_solo": "c",
+  "oracle_reference": false,
+  "privacy_log_last_only": true,
+  "privacy_save_received": false
+}

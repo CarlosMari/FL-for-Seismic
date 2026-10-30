@@ -92,7 +92,7 @@ def rescore_run(run_dir, device="cuda"):
     # FedPer/FedPerBN/FedPerSurvey deploy the personal model (body + own head +
     # own BN); local/ holds the upload, which is the wrong head for evaluation.
     algo = str(cfg.algorithm)
-    uses_personal = algo in ("fedper", "fedperbn", "fedpersurvey")
+    uses_personal = algo in ("fedper", "fedperbn", "fedpersurvey", "fedhca2")
     deployed_states = (
         load_personal_states(run_dir) if uses_personal else load_local_states(run_dir)
     )
@@ -150,7 +150,7 @@ def rescore_run(run_dir, device="cuda"):
     # FedBN/FedPerBN have no shared normalisation or shared head (shared ≡
     # deployed per the Chapter 4 convention), so their "global" is not a
     # defined reference. Skip it.
-    is_local_only = str(cfg.algorithm) in ("fedbn", "fedperbn", "fedpersurvey")
+    is_local_only = str(cfg.algorithm) in ("fedbn", "fedperbn", "fedpersurvey", "fedhca2")
     if global_state is not None and not is_local_only:
         for client, loader in enumerate(data.client_tests):
             if loader is None or not len(loader.dataset):

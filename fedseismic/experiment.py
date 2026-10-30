@@ -282,6 +282,8 @@ def _setup_multisurvey(cfg, seed, rng):
     if cfg.num_clients % len(surveys) != 0:
         raise ValueError("num_clients must split evenly across the selected surveys")
     per_survey = cfg.num_clients // len(surveys)
+    if cfg.algorithm == "fedhca2" and per_survey != 1:
+        raise ValueError("fedhca2 expects exactly one client per survey")
     kwargs = _loader_kwargs(cfg)
     train_parts, loaders, client_tests = [], [], []
     tests = {}

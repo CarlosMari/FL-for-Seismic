@@ -128,6 +128,12 @@ class RunConfig:
     survey_c_ignore: int = -1
     survey_solo: str | None = None
     survey_train_subset: int = 0
+    fedhca2_ca_c: float = 0.4
+    fedhca2_alpha_init: float = 0.1
+    fedhca2_beta_init: float = 0.1
+    fedhca2_hyper_lr: float = 0.01
+    fedhca2_hyper_momentum: float = 0.9
+    fedhca2_hyper_weight_decay: float = 1e-4
     test2_seismic: str | None = None
     test2_labels: str | None = None
     validation_seismic: str | None = None
@@ -173,6 +179,11 @@ class RunConfig:
             raise ValueError("public_pad_per_class must be non-negative")
         if not 0.0 <= float(self.prior_smooth) <= 1.0:
             raise ValueError("prior_smooth must be in [0, 1]")
+        if self.algorithm == "fedhca2":
+            if not self.multisurvey or self.sample_ratio != 1.0:
+                raise ValueError("fedhca2 needs multisurvey=true and sample_ratio=1.0")
+            if self.survey_solo:
+                raise ValueError("fedhca2 has nothing to aggregate with survey_solo set")
         if self.checkpoint_policy is CheckpointPolicy.BEST_TEST:
             warnings.warn(
                 "BEST_TEST selects on the evaluation set and leaks test data",

@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import json
 import warnings
 
 import numpy as np
@@ -27,6 +28,7 @@ from .client import (
     class_frequency,
 )
 from .fedbabu import FedBABUClientTrainer
+from .fedhca2 import FedHCA2Aggregator, FedHCA2ClientTrainer
 from .fedkper import FedKPerClientTrainer
 from .fedper import FedPerClientTrainer
 from .fedperbn import FedPerBNClientTrainer
@@ -94,6 +96,7 @@ class Server:
         self.rng = rng or np.random.RandomState(config.seed)
         self.history = []
         self._client_trainers = {}
+        self._fedhca2 = None
 
     def _trainer(self, client):
         if client not in self._client_trainers:
@@ -111,6 +114,7 @@ class Server:
                     "fedper": FedPerClientTrainer,
                     "fedperbn": FedPerBNClientTrainer,
                     "fedpersurvey": FedPerSurveyBNClientTrainer,
+                    "fedhca2": FedHCA2ClientTrainer,
                     "fedbabu": FedBABUClientTrainer,
                     "fedrod": FedRoDClientTrainer,
                     "ditto": DittoClientTrainer,
@@ -289,6 +293,8 @@ class Server:
             client_train_accs=train_accs or None,
             client_histograms=histograms or None,
         ))
+        if self.config.algorithm == "fedhca2":
+            self._fedhca2_personalize(round_index + 1, global_state)
         record = RoundRecord(round=round_index + 1, selected_clients=selected)
         if local_mious:
             record.miou_local_mean = float(np.mean(local_mious))
@@ -332,6 +338,21 @@ class Server:
                 "n_selected": len(record.selected_clients),
             })
         return record
+
+    def _fedhca2_personalize(self, round_index, global_state):
+        """Give each client its own aggregated encoder and decoder."""
+        if self._fedhca2 is None:
+            self._fedhca2 = FedHCA2Aggregator.from_config(global_state, self.config)
+        trainers = [self._trainer(client) for client in range(self.config.num_clients)]
+        updated = self._fedhca2.step([trainer.personal_state for trainer in trainers])
+        for client, (trainer, shared) in enumerate(zip(trainers, updated)):
+            trainer.receive(shared)
+            if self.privacy_logger is not None:
+                self.privacy_logger.write_personal(client, trainer.personal_state)
+        if self.privacy_logger is not None:
+            path = self.privacy_logger.run_dir / "hyper_weights.jsonl"
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"round": round_index, **self._fedhca2.weights()}) + "\n")
 
     def _log_round_scores(self, round_index, client, local_model, global_state):
         """Softmax of the upload and of the global model that client just received."""
