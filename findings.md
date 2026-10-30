@@ -7,6 +7,16 @@
 > claims about consistent harm, conclusive non-parity, or ruling out a data-volume
 > artifact are unsupported. See the corrected entries below.
 
+> **INTERRUPTED PILOT (30 Oct 2026, 20:40 UTC):** The three-survey
+> FedHCA2-style job is no longer running. Its last complete history entry is
+> round 7/20; `results.json` and `global_final.pt` do not exist. The per-client
+> personal files were not saved atomically as a set: client 0 was updated after
+> the last completed round while clients 1 and 2 were last saved at round 7.
+> The chained baseline and parity jobs are not running either. The cause of the
+> interruption is unknown; no OOM or NVIDIA Xid was found in the inspected
+> kernel log. Do not present this as a completed experiment, overwrite its files,
+> or infer a hardware fault from the interruption alone.
+
 > **CRITICAL PARITY AUDIT (30 Oct 2026):** All six two-survey parity runs
 > used a defective `aggregate_survey_heads`: the 4-D convolutional classifier
 > weight is treated as a bias and each class row is averaged to a scalar after
@@ -15,8 +25,8 @@
 > The reported mIoUs are real scores from the saved local models, but do not
 > establish the intended FL-vs-solo comparison. Do not use the paired deltas
 > as a definitive result until the implementation is fixed and tested and the
-> affected arms are rerun. The advisor confirmed that the currently running
-> FedHCA2-style arm follows a different aggregation path; the queued
+> affected arms are rerun. The advisor confirmed that the interrupted
+> FedHCA2-style arm followed a different aggregation path; any subsequent
 > fedpersurvey and solo baselines require the corrected code.
 
 > **SUBSET METADATA CORRECTION (30 Oct 2026):** `labels/pi.json` in the matched
@@ -26,8 +36,8 @@
 > statement that class 5 was present in F3 training, based on `pi.json`, was
 > wrong. This mismatch is also a reason the solo scores can be low.
 
-> **FEDHCA2-STYLE HEAD CHECK (30 Oct 2026):** The running three-survey arm
-> uses the generic server aggregation path and restores each client's own head
+> **FEDHCA2-STYLE HEAD CHECK (30 Oct 2026):** The interrupted three-survey arm
+> used the generic server aggregation path and restored each client's own head
 > from its personal state; it does not call `aggregate_survey_heads`. Inspection
 > of the current personal checkpoints found nonzero channel-wise standard
 > deviations in all active head rows (approximately 0.10–0.23), unlike the
