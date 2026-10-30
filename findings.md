@@ -26,6 +26,15 @@
 > statement that class 5 was present in F3 training, based on `pi.json`, was
 > wrong. This mismatch is also a reason the solo scores can be low.
 
+> **FEDHCA2-STYLE HEAD CHECK (30 Oct 2026):** The running three-survey arm
+> uses the generic server aggregation path and restores each client's own head
+> from its personal state; it does not call `aggregate_survey_heads`. Inspection
+> of the current personal checkpoints found nonzero channel-wise standard
+> deviations in all active head rows (approximately 0.10–0.23), unlike the
+> collapsed fedpersurvey aggregate. Regression tests also check its server path
+> and personal-head restoration. This checks the specific head-collapse issue;
+> it is not proof that the whole FedHCA2-style implementation is correct.
+
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
 > It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class

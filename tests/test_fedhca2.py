@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -17,6 +19,7 @@ from fedseismic.federated.fedhca2 import (
     FedHCA2Aggregator, FedHCA2ClientTrainer, cross_attention_deltas, decoder_keys,
     encoder_keys, get_ca_delta,
 )
+from fedseismic.federated.server import Server
 from fedseismic.models import UNet
 from fedseismic.privacy.multisurvey_utility import rescore_run
 
@@ -53,6 +56,30 @@ class TestCrossAttention(unittest.TestCase):
             q = deltas[i].reshape(1, -1)
             attn = torch.softmax((q @ deltas.t()) * 8 ** -0.5, dim=-1)
             self.assertTrue(torch.allclose(out[i], (attn @ deltas)[0]))
+
+
+class TestFedHCA2HeadPath(unittest.TestCase):
+    def test_fedhca2_server_does_not_use_survey_head_aggregator(self):
+        server = Server.__new__(Server)
+        server.config = SimpleNamespace(algorithm="fedhca2", agg_strategy="equal")
+        w = torch.arange(6, dtype=torch.float32).reshape(2, 3, 1, 1)
+        with patch("fedseismic.federated.survey_heads.aggregate_survey_heads",
+                   side_effect=AssertionError("wrong aggregation path")):
+            out = server._aggregate([{"outc.conv.weight": w},
+                                     {"outc.conv.weight": w + 2}], [0, 1])
+        self.assertTrue(torch.equal(out["outc.conv.weight"], w + 1))
+
+    def test_download_restores_nonconstant_personal_head(self):
+        trainer = FedHCA2ClientTrainer.__new__(FedHCA2ClientTrainer)
+        trainer.model = torch.nn.Conv2d(3, 2, kernel_size=1)
+        trainer.device = "cpu"
+        personal = trainer.model.state_dict()
+        personal["weight"] = torch.arange(6, dtype=torch.float32).reshape(2, 3, 1, 1)
+        trainer.personal_state = personal
+        placeholder = {key: torch.zeros_like(value) for key, value in personal.items()}
+        trainer.download(placeholder)
+        self.assertTrue(torch.equal(trainer.model.weight.detach(), personal["weight"]))
+        self.assertGreater(float(trainer.model.weight[0].detach().std()), 0.0)
 
 
 def _unet_state():
