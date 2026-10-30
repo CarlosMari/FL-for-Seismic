@@ -50,10 +50,14 @@
 > At round 2, logged **raw** FedHCA2 encoder hyperweights were approximately
 > `[5.78, 4.53, 1.78]`. The implementation clamps their effective values to 1
 > during aggregation; two of 36 logged decoder weights also exceeded 1. This
-> saturation is a diagnostic, not by itself proof of a failed run. Log and
-> interpret the raw/effective distinction; review the trajectory before making
-> claims. `history.jsonl`'s FedHCA2 global score is a placeholder, not a valid
-> deployed-model score.
+> saturation is a diagnostic, not by itself proof of a failed run. The advisor
+> confirmed that upstream likewise clamps weights at use time, not the stored
+> parameters: raw values need not stay in [0, 1]. Outside that interval the
+> clamp's data-gradient is zero; optimizer momentum and weight decay can still
+> change the raw values. The effective encoder weights stay at 1 while the raw
+> values exceed 1, so report both their trajectory and this saturation rather
+> than assuming an adaptive interior solution. `history.jsonl`'s FedHCA2 global
+> score is a placeholder, not a valid deployed-model score.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
