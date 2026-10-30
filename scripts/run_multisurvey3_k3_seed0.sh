@@ -7,7 +7,12 @@ export PYTHONPATH="$PWD"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 if [[ $# -gt 0 ]]; then
-  while kill -0 "$1" 2>/dev/null; do sleep 60; done
+  while kill -0 "$1" 2>/dev/null; do
+    # An orphaned preceding worker may briefly remain as a zombie.
+    state=$(ps -o stat= -p "$1" 2>/dev/null || true)
+    [[ "$state" == Z* ]] && break
+    sleep 60
+  done
 fi
 
 # Completion markers are insufficient: require both parity seeds and their
@@ -42,7 +47,8 @@ fi
 
 # Do not silently train on uncommitted modifications to the prepared method.
 tracked=(fedseismic/config.py fedseismic/experiment.py fedseismic/federated/server.py
-         fedseismic/federated/fedhca2.py fedseismic/privacy/multisurvey_utility.py
+         fedseismic/federated/fedhca2.py fedseismic/federated/survey_heads.py
+         fedseismic/privacy/multisurvey_utility.py
          configs/seismic_multisurvey3_k3.json scripts/compare_multisurvey3_k3.py
          configs/sweeps/multisurvey3_k3_fedhca2.json
          configs/sweeps/multisurvey3_k3_fedpersurvey.json

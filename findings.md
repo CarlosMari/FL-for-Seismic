@@ -7,6 +7,25 @@
 > claims about consistent harm, conclusive non-parity, or ruling out a data-volume
 > artifact are unsupported. See the corrected entries below.
 
+> **CRITICAL PARITY AUDIT (30 Oct 2026):** All six two-survey parity runs
+> used a defective `aggregate_survey_heads`: the 4-D convolutional classifier
+> weight is treated as a bias and each class row is averaged to a scalar after
+> every round, including in the one-client solo baseline. All six saved
+> `global_final.pt` heads confirm zero across-feature standard deviation per row.
+> The reported mIoUs are real scores from the saved local models, but do not
+> establish the intended FL-vs-solo comparison. Do not use the paired deltas
+> as a definitive result until the implementation is fixed and tested and the
+> affected arms are rerun. The advisor confirmed that the currently running
+> FedHCA2-style arm follows a different aggregation path; the queued
+> fedpersurvey and solo baselines require the corrected code.
+
+> **SUBSET METADATA CORRECTION (30 Oct 2026):** `labels/pi.json` in the matched
+> runs was computed from the pre-subset pool, not the 350 sections actually
+> used. Direct inspection of the F3 label cube shows zero class-5 pixels in
+> training, but 534,099 class-5 pixels in the held-out test. Thus the earlier
+> statement that class 5 was present in F3 training, based on `pi.json`, was
+> wrong. This mismatch is also a reason the solo scores can be low.
+
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
 > It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class
@@ -888,9 +907,25 @@ asymmetry, a mechanism, or the absence of a data-volume effect. F3 solo's
 0.117 spread illustrates instability, but it is not an estimate of the
 uncertainty in paired differences. Only two seeds are planned/completed.
 
-F3 class 5 occurs in both the training set (approximately 0.00334 of train
-pixels according to `labels/pi.json`) and holdout (`multisurvey_per_class.csv`);
-its zero IoU is therefore not evidence that it is absent from training.
+**Important correction:** F3 class 5 has **zero** pixels in the actual training
+sections 0–349, but 534,099 pixels in test sections 561–700. Its test IoU is 0
+in all F3 runs because the trainer masks the loss to classes observed in
+training. The logged `labels/pi.json` instead describes the larger pre-subset
+pool and incorrectly lists class 5 as present. This metadata mismatch also
+affects class-support information passed to the aggregator.
+
+The requested 50-crossline buffer is a minimum: selecting the first 350
+sections leaves 211 crosslines between F3 train and test and 276 for Parihaka.
+Train and test inputs were min-max normalized using the entire survey cube,
+including the holdout; the preprocessing is matched between each survey's arms
+but uses unlabeled test data. Parihaka has 593,540 pixels per section versus
+F3's 102,255 (5.80×), so the data match is in section count, not pixels.
+
+Seed-0 FL `history.jsonl` has stale rounds 1–19 followed by the completed
+batch-2 run's rounds 1–20; do not use the unfiltered history for learning
+curves. Scores above were computed from the saved final personal checkpoints,
+not from that history. All six runs recorded a dirty Git tree, so the exact
+working trees cannot be reconstructed solely from their recorded commits.
 
 PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the union):
   F3 (classes 0-5), seed0:  FL [0.955,0.751,0.922,0.457,0.133,0.000]  solo [0.935,0.715,0.932,0.346,0.169,0.000]

@@ -134,7 +134,6 @@ def aggregate_survey_heads(states, client_infos, num_classes):
         if key.startswith("outc.") and np.asarray(out[key]).ndim >= 1:
             # Per-row mean over the sites that train that row.
             result = stacked[0].copy()
-            is_weight = np.asarray(out[key]).ndim == 2  # (C, D); bias is (C,)
             for row in range(min(num_classes, stacked.shape[1] if stacked.ndim > 1 else 0)):
                 members = [
                     i for i, info in enumerate(client_infos)
@@ -142,10 +141,10 @@ def aggregate_survey_heads(states, client_infos, num_classes):
                 ]
                 if not members:
                     continue
-                if is_weight:  # weight (C, D)
-                    result[row] = stacked[members, row].mean(axis=0)
-                else:  # bias (C,)
-                    result[row] = stacked[members, row].mean()
+                # Average only the client axis: a UNet head's weight is 4-D
+                # (classes, channels, 1, 1), while the bias is 1-D. Reducing
+                # every axis would collapse a weight row to a single scalar.
+                result[row] = stacked[members, row].mean(axis=0)
             out[key] = torch.as_tensor(result, dtype=out[key].dtype)
         else:
             out[key] = torch.as_tensor(np.mean(stacked, axis=0), dtype=out[key].dtype)

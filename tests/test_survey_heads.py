@@ -65,6 +65,33 @@ class TestAggregateSurveyHeads(unittest.TestCase):
         self.assertAlmostEqual(float(out["outc.conv.weight"][0][0]), 1.0)
         self.assertAlmostEqual(float(out["outc.conv.weight"][1][0]), 2.0)
 
+    def test_single_client_preserves_nonconstant_conv_weight_rows(self):
+        state = _tiny_state(c=4, d=3)
+        weight = torch.arange(12, dtype=torch.float32).reshape(4, 3, 1, 1)
+        state["outc.conv.weight"] = weight
+        state["outc.conv.bias"] = torch.tensor([0.1, 0.2, 0.3, 0.4])
+        out = aggregate_survey_heads([state], [{"class_fracs": [1, 1, 1, 1]}], 4)
+        self.assertEqual(out["outc.conv.weight"].shape, weight.shape)
+        self.assertTrue(torch.equal(out["outc.conv.weight"], weight))
+        self.assertTrue(torch.equal(out["outc.conv.bias"], state["outc.conv.bias"]))
+
+    def test_conv_weight_rows_average_only_across_clients(self):
+        s0 = _tiny_state(c=4, d=3)
+        s1 = _tiny_state(c=4, d=3)
+        w0 = torch.arange(12, dtype=torch.float32).reshape(4, 3, 1, 1)
+        w1 = w0 * 2 + 1
+        s0["outc.conv.weight"] = w0
+        s1["outc.conv.weight"] = w1
+        s0["outc.conv.bias"] = torch.tensor([1., 2., 3., 4.])
+        s1["outc.conv.bias"] = torch.tensor([3., 4., 5., 6.])
+        infos = [{"class_fracs": [1, 1, 0, 0]}, {"class_fracs": [1, 0, 1, 0]}]
+        out = aggregate_survey_heads([s0, s1], infos, 4)
+        self.assertTrue(torch.equal(out["outc.conv.weight"][0], (w0[0] + w1[0]) / 2))
+        self.assertTrue(torch.equal(out["outc.conv.weight"][1], w0[1]))
+        self.assertTrue(torch.equal(out["outc.conv.weight"][2], w1[2]))
+        self.assertTrue(torch.equal(out["outc.conv.weight"][3], w0[3]))
+        self.assertTrue(torch.equal(out["outc.conv.bias"], torch.tensor([2., 2., 5., 4.])))
+
 
 class TestLocalKeysAreBNOnly(unittest.TestCase):
     def test_head_is_not_local_for_fedpersurvey(self):

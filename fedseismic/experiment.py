@@ -247,6 +247,14 @@ def _multisurvey_surveys(cfg):
     return surveys
 
 
+def _limit_survey_train_parts(parts, subset):
+    """Apply the same deterministic training subset to loaders and metadata."""
+    subset = int(subset or 0)
+    if subset <= 0:
+        return parts
+    return [np.sort(np.asarray(part))[:subset] for part in parts]
+
+
 def _multisurvey_client_info(cfg):
     """Per-client class info over the 12-class union space (deterministic)."""
     from fedseismic.data.partition import partition_noniid
@@ -260,6 +268,7 @@ def _multisurvey_client_info(cfg):
         chunks = partition_noniid(seismic.shape[1], per_survey)
         tparts, _ = split_client_local_test(
             chunks, cfg.local_test_ratio, buffer=int(getattr(cfg, "spatial_holdout_buffer", 0)))
+        tparts = _limit_survey_train_parts(tparts, getattr(cfg, "survey_train_subset", 0))
         infos.extend(compute_client_class_info(labels, tparts, cfg.num_classes, cfg.rare_classes))
     return infos
 
@@ -304,9 +313,7 @@ def _setup_multisurvey(cfg, seed, rng):
         # (test is the tail of the crossline axis, so that is the first N of the
         # sorted train indices). Fixed subset across seeds (seed only changes
         # init + data order).
-        subset = int(getattr(cfg, "survey_train_subset", 0) or 0)
-        if subset > 0:
-            tparts = [np.sort(np.asarray(tp))[:subset] for tp in tparts]
+        tparts = _limit_survey_train_parts(tparts, getattr(cfg, "survey_train_subset", 0))
         # Advisor's buffer assertion: train and test must not overlap and the
         # closest crossline gap must exceed the buffer. Guards the earlier
         # buffer-confound bug.
