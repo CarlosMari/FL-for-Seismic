@@ -1,3 +1,12 @@
+> **RESEARCH AUDIT CORRECTION (30 Oct 2026):** Earlier entries contain unsupported
+> assertions about the rotation, loss functions, and matched-size parity. The
+> rotation/buffer comparison is confounded, not proof that either caused the
+> 0.14 difference; the activation probes cannot establish orientation has no
+> effect. The `fedpersurvey` trainer uses masked cross-entropy, not FocalDice.
+> The Parihaka matched-size seed-1 solo result is still pending; claims about
+> consistent effects on both surveys, conclusive non-parity, or ruling out a
+> data-volume artifact are premature. See the corrected entries below.
+
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
 > It is **logit-adjusted local training (LA)**: cross-entropy on `z + tau*log pi` (the class
@@ -714,7 +723,15 @@ Present-class vs all-class inflation is 0 at this site (no absent facies) — it
 sites that lack a class (e.g. F3 client 0 lacks Zechstein -> 0.79 all-class vs 0.95 present-class).
 Report both metrics; the inflation is site-dependent, not global.
 
-## 2026-10-29, THE ROTATION "EFFECT" WAS A BUFFER CONFOUND (bug found)
+## 2026-10-29, ROTATION COMPARISON: BUFFER CONFOUND
+
+**Correction:** The notes immediately below overstated the finding. The metadata
+shows a buffer and orientation confound; it does not determine either one's
+contribution to the difference. A UNet's function class can be transposed by
+transposing its kernels, but a fixed learned network is not rotation-invariant,
+and mixed-orientation federated training is not a global transpose. The isolated
+effect is unknown without matched controls. Do not cite the following historical
+interpretation as established.
 
 The 0.14 Parihaka drop (0.845 original -> 0.7015 "rotated") is NOT a rotation effect. The
 config diff between the two solo runs shows they used DIFFERENT train/test splits:
@@ -742,6 +759,12 @@ the natural orientation; training is orientation-agnostic). The ~0.05 adjacency 
 earlier (buffer 5-15) is consistent with this: the buffer removes the train/test adjacency.
 
 ## 2026-10-29, DOES THE MIXED-ORIENTATION SHARED BODY SPLIT? (probes on a trained multi-survey ckpt)
+
+**Correction:** This exploratory probe used the same client-0 personal model for
+both surveys and did not compare Parihaka's two orientations. High cosine of
+average absolute activations, and the filter-pair null used, cannot establish
+shared representations or determine the effect on accuracy. The verdict below
+is withdrawn; orientation as a contributor to interference remains untested.
 
 User's sharp question: we train the shared body on F3 (natural, reflectors horizontal) + Parihaka
 (rotated 90deg, reflectors vertical) = a PARTIAL transpose. Does that have a consequence for the
@@ -776,6 +799,16 @@ material driver of accuracy or cross-survey interference. Kill criteria largely 
 pairs + high activation cosine), so do NOT spend GPU re-testing orientation.
 
 ## 2026-10-29, LOSS AUDIT (advisor): every loss — principled or "because we did"?
+
+**Correction:** This preliminary audit did not verify all trainer overrides.
+`FedPerSurveyBNClientTrainer.train` uses masked cross-entropy, including in the
+matched-size experiments; do not describe all seismic FL as FocalDice. Check
+the trainer for each reported run. Dice and IoU are related but distinct
+objectives; class-weighting choices require empirical justification, not a
+claim that adding weights necessarily double-counts imbalance. There is no
+evidence here that hyperparameters were fixed before experiments; do not claim
+that without a dated record. Named-method comparisons below require independent
+paper/code verification before being cited as established.
 
 SEGMENTATION — FocalDice(1:1, gamma=2, alpha=None) for the seismic runs: PRINCIPLED, keep it.
 - Compound Dice+Focal is the most robust loss family (Ma et al. 2021 "Loss Odyssey", MedIA); MONAI's
@@ -831,8 +864,12 @@ Q "Is this really FedRoD/FedVLS?" -> rename or fix before submission.
 ## 2026-10-30, SIZE-MATCHED PARITY EXPERIMENT (2-client FL vs solo, 350 sections/survey, buffer=50, batch=2)
 
 Setup: 2-client FL [F3-350 + Parihaka-350] vs each survey trained ALONE at 350 sections, same split,
-same 12-class union head, same loss (FocalDice), 2 seeds (0,1). Readout: Delta_s = mIoU(FL,s) - mIoU(solo,s),
-per survey (present-class mIoU over the survey's own 6 classes). Margin +/-1.5pt fixed in advance.
+same 12-class union head, masked cross-entropy loss on training-present classes, 2 seeds (0,1).
+Readout: Delta_s = mIoU(FL,s) - mIoU(solo,s), per survey (present-class mIoU,
+pixel-pooled within each client, argmax restricted to its survey's six rows).
+The +/-1.5-point margin was proposed before these scores were inspected; it is
+not by itself an equivalence test. Training sections rather than pixel counts
+were matched, and Parihaka sections contain substantially more pixels.
 
 AGGREGATE present-class mIoU (A=F3 classes 0-5, B=Parihaka classes 6-11):
   FL        seed0: F3 0.536   Pari 0.408
@@ -844,34 +881,17 @@ DELTA_s (FL - solo), per survey per seed:
   F3:   seed0 0.536-0.516 = +0.020 ;  seed1 0.498-0.399 = +0.099   -> FL HELPS F3
   Pari: seed0 0.408-0.452 = -0.044 ;  seed1 pending                -> FL HURTS Parihaka (seed0)
 
-**THE SIGNS DISAGREE: the FL is ASYMMETRIC, NOT parity.** It helps F3 and hurts Parihaka. Per the
-pre-registered +/-1.5pt margin, EVERY Delta falls outside the margin, so the decision rule itself says
-"not parity." This is the SAME asymmetry seen in the full-size multi-survey runs (F3 helped ~+0.04,
-Parihaka hurt ~-0.04): F3 helped and Parihaka hurt in BOTH the full-size and the size-matched settings.
-That is a replicated direction across two data regimes -> the asymmetry is NOT an artifact of data volume
-(which is exactly what the size-matched experiment was designed to rule out).
+**Interpretation:** The observed seed-0 effects have opposite signs; the F3
+difference is positive in both available seeds. Parihaka's seed-1 solo is
+pending, so its second paired difference and any cross-seed direction are
+unknown. Results are descriptive, not proof of non-parity, a consistent
+asymmetry, a mechanism, or the absence of a data-volume effect. F3 solo's
+0.117 spread illustrates instability, but it is not an estimate of the
+uncertainty in paired differences. Only two seeds are planned/completed.
 
-TERMINOLOGY (advisor): do NOT say "redistributes utility" (implies an unmeasured zero-sum transfer). Use
-"asymmetric per-survey effect" / "positive transfer to F3, negative transfer to Parihaka". Mechanism
-(union-head / class-imbalance / Parihaka features dominating the aggregate) is a hypothesis, UNTESTED.
-
-CLAIM WORDING (advisor-approved): "At matched size (350 sections per survey), federated training did not
-reach parity. The per-survey effect was asymmetric: F3 gained on both seeds (+2.0, +9.9 pt), while
-Parihaka lost (-4.4 pt, seed 0). With n=2 seeds and seed-to-seed spread around 10 pt, the direction is
-consistent but the magnitude is not resolved."
-
-REPORTING RULES (advisor): (1) show Delta_s PER SEED, do not collapse to mean +/- std (n=2 error bars are
-meaningless). (2) The relevant noise is the variance of the PAIRED difference, not the solo spread (0.117);
-cannot be estimated from 2 seeds -- say so. (3) Weight the claim on what is observable: sign agreement across
-seeds + the per-class pattern. (4) PRESENT THE SEED VARIANCE AS A FINDING: training at 350 sections is
-high-variance, which sets a floor on effect sizes any study at this scale can detect (rigour, not weakness).
-(5) Parihaka direction currently rests on n=1 -- keep the Parihaka sentence PROVISIONAL until its seed1 lands;
-if seed1 is positive/inside margin, shrink the claim to "FL helps F3; effect on Parihaka unresolved".
-
-CAVEAT (must state): seed variance is LARGE. F3-solo = 0.516 (seed0) vs 0.399 (seed1) = 0.117 spread;
-FL F3 = 0.536 vs 0.498. So individual Delta_s are within seed noise (~0.1). The DIRECTION (FL helps F3,
-hurts Parihaka) is consistent across seeds and at the per-class level (below), but the MAGNITUDE is not
-resolved by 2 seeds. Treat as an effect-size observation, not a significance test.
+F3 class 5 occurs in both the training set (approximately 0.00334 of train
+pixels according to `labels/pi.json`) and holdout (`multisurvey_per_class.csv`);
+its zero IoU is therefore not evidence that it is absent from training.
 
 PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the union):
   F3 (classes 0-5), seed0:  FL [0.955,0.751,0.922,0.457,0.133,0.000]  solo [0.935,0.715,0.932,0.346,0.169,0.000]
@@ -880,17 +900,5 @@ PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the un
      Delta:                      [+0.131,+0.229,+0.109,+0.076,+0.049, 0.000]
   Parihaka (classes 6-11), seed0: FL [0.842,0.496,0.303,0.524,0.197,0.086]  solo [0.897,0.550,0.421,0.596,0.096,0.152]
      Delta:                          [-0.055,-0.054,-0.118,-0.072,+0.101,-0.066]
-  -> Per-class CONFIRMS the asymmetry: FL raises most F3 classes (esp. seed1) and lowers most Parihaka
-     classes (only one Parihaka class improves). The per-class Delta is the honest granularity.
-
-INTERPRETATION (keep the claim small): a boundary/negative result for personalization -- at matched size,
-cross-survey FL does not give a clean parity or a gain; it shows POSITIVE transfer to F3 and NEGATIVE
-transfer to Parihaka (asymmetric per-survey effect). It does NOT support "FL helps when sizes are matched".
-The defensible claim (advisor-approved): "at matched size and with the train/test buffer fixed, cross-survey
-FL showed an asymmetric per-survey effect (Delta_F3 > 0, Delta_Pari < 0); with 2 seeds and ~0.1 seed noise
-this is a directional observation, not a settled effect." Parihaka-solo seed1 to be folded in when its
-training finishes (its sign decides whether the Parihaka half of the claim stands).
-
-OPEN (advisor consult pending): given the disagreeing signs + large seed noise, decide whether the thesis
-reports this as (a) "FL is asymmetric at matched size" (the honest read), or (b) drops the parity claim and
-falls back to the full-size boundary framing. Do NOT report parity -- it is not what the numbers show.
+  -> These per-class differences describe the available runs; they do not establish
+     the direction on Parihaka across seeds or prove a causal explanation.

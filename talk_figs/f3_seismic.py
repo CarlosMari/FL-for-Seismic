@@ -48,8 +48,6 @@ def main():
     ap.add_argument("--tag", default="f3")
     a = ap.parse_args()
     RUN, FEDBN = a.run, a.fedbn
-    run = "results/runs/multisurvey/fedavg_noniid_a0.1_lNA_dna_n4/seed_0"
-    FEDBN = "results/runs/multisurvey_fedbn/fedbn_noniid_a0.1_lNA_dna_n4/seed_0"
     meta = load_meta(RUN)
     cfg = RunConfig.from_mapping(meta["config"])
     data = build_federated_run(cfg, 0)
@@ -77,12 +75,11 @@ def main():
 
     # (d) FedBN deployed
     m_d = UNet(1, cfg.num_classes, bilinear=False, norm=cfg.norm, groups=cfg.norm_groups)
-    try:
+    pred_d = None
+    if FEDBN:
         fedbn_local = load_local_states(FEDBN)[client]
         m_d.load_state_dict(fedbn_local)
         pred_d = predict_masked(m_d, img, device)
-    except Exception:
-        pred_d = None
 
     panels = [("(a)  averaged BN", pred_a), ("(b)  local BN", pred_b),
               ("(c)  interpretation", truth)]
@@ -92,17 +89,24 @@ def main():
     n = len(panels)
     fig = plt.figure(figsize=(3.6 * n, 3.0))
     gs = GridSpec(1, n, figure=fig, wspace=0.05)
+    # The corrected Parihaka cubes already yield natural-orientation sections;
+    # the original cubes need a display rotation. Apply it to all aligned arrays.
+    corrected = "_rot90" in str(cfg.survey_b_seismic)
+    display = (lambda x: x) if corrected else np.rot90
+    def output_name(stem):
+        return stem if a.tag == "f3" else f"{a.tag}_{stem}"
+
     for j, (title, pred) in enumerate(panels):
         ax = fig.add_subplot(gs[0, j])
-        S.show_seismic(ax, np.rot90(sec))          # Parihaka input is rotated 90 in the pipeline
-        S.overlay_facies(ax, np.rot90(pred), n=cfg.num_classes, alpha=0.32, contour=True)
+        S.show_seismic(ax, display(sec))
+        S.overlay_facies(ax, display(pred), n=cfg.num_classes, alpha=0.32, contour=True)
         ax.set_title(title, fontsize=15, color=S.NAVY, pad=8)
         if j == 0:
             ax.set_ylabel("depth", fontsize=14)
     handles = [mpatches.Patch(color=S.FACIES_COLORS[k], label=NAMES[k]) for k in range(6)]
     fig.legend(handles=handles, loc="lower center", ncol=6, fontsize=12,
                frameon=False, bbox_to_anchor=(0.5, -0.03))
-    S.save(fig, "f3_blackout_strip", (3.6 * n, 3.0))
+    S.save(fig, output_name("f3_blackout_strip"), (3.6 * n, 3.0))
 
     # per-method panels (separate files, same rotation) for the build animation
     names = {"(a)  averaged BN": "f3a_averaged_bn", "(b)  local BN": "f3b_local_bn",
@@ -113,10 +117,10 @@ def main():
             continue
         f2 = plt.figure(figsize=(3.6, 3.0))
         ax2 = f2.add_subplot(111)
-        S.show_seismic(ax2, np.rot90(sec))
-        S.overlay_facies(ax2, np.rot90(pred), n=cfg.num_classes, alpha=0.32, contour=True)
+        S.show_seismic(ax2, display(sec))
+        S.overlay_facies(ax2, display(pred), n=cfg.num_classes, alpha=0.32, contour=True)
         ax2.set_title(title, fontsize=15, color=S.NAVY, pad=8)
-        S.save(f2, fn, (3.6, 3.0))
+        S.save(f2, output_name(fn), (3.6, 3.0))
     print("f3 per-method panels written")
     print("f3 seismic strip written")
 
