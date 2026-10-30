@@ -10,6 +10,29 @@ if [[ $# -gt 0 ]]; then
   while kill -0 "$1" 2>/dev/null; do sleep 60; done
 fi
 
+# Completion markers are insufficient: require both parity seeds and their
+# aggregate and per-class rescoring rows before starting the next experiment.
+.venv/bin/python - <<'PY'
+import csv
+from pathlib import Path
+
+arms = {"parity_fl": "fedpersurvey_noniid_a0.1_lNA_dna_n2",
+        "parity_f3_solo": "fedpersurvey_noniid_a0.1_lNA_dna_n1",
+        "parity_pari_solo": "fedpersurvey_noniid_a0.1_lNA_dna_n1"}
+expected = {str(Path("results/runs") / arm / cell / f"seed_{seed}")
+            for arm, cell in arms.items() for seed in (0, 1)}
+for run in expected:
+    if not (Path(run) / "results.json").is_file():
+        raise SystemExit(f"parity run not finished: {run}")
+for table in ("multisurvey_utility.csv", "multisurvey_per_class.csv"):
+    path = Path("results/tables") / table
+    with path.open(newline="") as handle:
+        actual = {row["run"] for row in csv.DictReader(handle)}
+    if missing := expected - actual:
+        raise SystemExit(f"{path} lacks parity scores for {sorted(missing)}")
+print("Both parity seeds and their aggregate/per-class scores are present", flush=True)
+PY
+
 # Avoid colliding with a separately launched training or rescore process.
 gpu_pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
 if [[ -n "${gpu_pids//[[:space:]]/}" ]]; then
