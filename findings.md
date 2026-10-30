@@ -3,9 +3,9 @@
 > rotation/buffer comparison is confounded, not proof that either caused the
 > 0.14 difference; the activation probes cannot establish orientation has no
 > effect. The `fedpersurvey` trainer uses masked cross-entropy, not FocalDice.
-> The Parihaka matched-size seed-1 solo result is still pending; claims about
-> consistent effects on both surveys, conclusive non-parity, or ruling out a
-> data-volume artifact are premature. See the corrected entries below.
+> The completed matched-size Parihaka results have opposite signs across seeds;
+> claims about consistent harm, conclusive non-parity, or ruling out a data-volume
+> artifact are unsupported. See the corrected entries below.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
@@ -875,16 +875,15 @@ AGGREGATE present-class mIoU (A=F3 classes 0-5, B=Parihaka classes 6-11):
   FL        seed0: F3 0.536   Pari 0.408
   FL        seed1: F3 0.498   Pari 0.396
   F3 solo   seed0: F3 0.516   |  seed1: F3 0.399
-  Pari solo seed0: Pari 0.452 |  seed1: (still training at write time; rescore pending)
+  Pari solo seed0: Pari 0.452 |  seed1: Pari 0.355
 
 DELTA_s (FL - solo), per survey per seed:
-  F3:   seed0 0.536-0.516 = +0.020 ;  seed1 0.498-0.399 = +0.099   -> FL HELPS F3
-  Pari: seed0 0.408-0.452 = -0.044 ;  seed1 pending                -> FL HURTS Parihaka (seed0)
+  F3:   seed0 +0.02048; seed1 +0.09915 (mean +0.05981).
+  Pari: seed0 -0.04429; seed1 +0.04110 (mean -0.00159).
 
 **Interpretation:** The observed seed-0 effects have opposite signs; the F3
-difference is positive in both available seeds. Parihaka's seed-1 solo is
-pending, so its second paired difference and any cross-seed direction are
-unknown. Results are descriptive, not proof of non-parity, a consistent
+difference is positive in both seeds, while the Parihaka difference changes
+sign. Results are descriptive, not proof of parity, non-parity, consistent
 asymmetry, a mechanism, or the absence of a data-volume effect. F3 solo's
 0.117 spread illustrates instability, but it is not an estimate of the
 uncertainty in paired differences. Only two seeds are planned/completed.
@@ -900,5 +899,12 @@ PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the un
      Delta:                      [+0.131,+0.229,+0.109,+0.076,+0.049, 0.000]
   Parihaka (classes 6-11), seed0: FL [0.842,0.496,0.303,0.524,0.197,0.086]  solo [0.897,0.550,0.421,0.596,0.096,0.152]
      Delta:                          [-0.055,-0.054,-0.118,-0.072,+0.101,-0.066]
-  -> These per-class differences describe the available runs; they do not establish
-     the direction on Parihaka across seeds or prove a causal explanation.
+  Parihaka (classes 6-11), seed1: FL [0.719,0.502,0.447,0.509,0.032,0.167]  solo [0.825,0.433,0.231,0.293,0.196,0.152]
+     Delta:                          [-0.106,+0.069,+0.216,+0.216,-0.164,+0.015]
+  -> These per-class differences describe the runs, not a causal explanation.
+
+Advisor review (30 Oct): the matched-size result is inconclusive with two seeds;
+neither parity nor consistent harm to Parihaka is established. Five seeds would
+be more informative, but do not launch more without the requested decision.
+The three-survey seed-0 pilot has priority. Parihaka was in the original training
+orientation, and section counts, not pixel counts, were matched.
