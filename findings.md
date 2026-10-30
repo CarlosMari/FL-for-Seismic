@@ -844,10 +844,29 @@ DELTA_s (FL - solo), per survey per seed:
   F3:   seed0 0.536-0.516 = +0.020 ;  seed1 0.498-0.399 = +0.099   -> FL HELPS F3
   Pari: seed0 0.408-0.452 = -0.044 ;  seed1 pending                -> FL HURTS Parihaka (seed0)
 
-**THE SIGNS DISAGREE: the FL is ASYMMETRIC, NOT parity.** It helps F3 and hurts Parihaka. So the
-size-matched test does NOT show "cross-survey FL matches a solo"; it shows FL redistributes utility
-from one survey to the other. This is the SAME asymmetry seen in the full-size multi-survey runs
-(multi helped one survey, hurt the other), now isolated at matched size with the buffer fixed.
+**THE SIGNS DISAGREE: the FL is ASYMMETRIC, NOT parity.** It helps F3 and hurts Parihaka. Per the
+pre-registered +/-1.5pt margin, EVERY Delta falls outside the margin, so the decision rule itself says
+"not parity." This is the SAME asymmetry seen in the full-size multi-survey runs (F3 helped ~+0.04,
+Parihaka hurt ~-0.04): F3 helped and Parihaka hurt in BOTH the full-size and the size-matched settings.
+That is a replicated direction across two data regimes -> the asymmetry is NOT an artifact of data volume
+(which is exactly what the size-matched experiment was designed to rule out).
+
+TERMINOLOGY (advisor): do NOT say "redistributes utility" (implies an unmeasured zero-sum transfer). Use
+"asymmetric per-survey effect" / "positive transfer to F3, negative transfer to Parihaka". Mechanism
+(union-head / class-imbalance / Parihaka features dominating the aggregate) is a hypothesis, UNTESTED.
+
+CLAIM WORDING (advisor-approved): "At matched size (350 sections per survey), federated training did not
+reach parity. The per-survey effect was asymmetric: F3 gained on both seeds (+2.0, +9.9 pt), while
+Parihaka lost (-4.4 pt, seed 0). With n=2 seeds and seed-to-seed spread around 10 pt, the direction is
+consistent but the magnitude is not resolved."
+
+REPORTING RULES (advisor): (1) show Delta_s PER SEED, do not collapse to mean +/- std (n=2 error bars are
+meaningless). (2) The relevant noise is the variance of the PAIRED difference, not the solo spread (0.117);
+cannot be estimated from 2 seeds -- say so. (3) Weight the claim on what is observable: sign agreement across
+seeds + the per-class pattern. (4) PRESENT THE SEED VARIANCE AS A FINDING: training at 350 sections is
+high-variance, which sets a floor on effect sizes any study at this scale can detect (rigour, not weakness).
+(5) Parihaka direction currently rests on n=1 -- keep the Parihaka sentence PROVISIONAL until its seed1 lands;
+if seed1 is positive/inside margin, shrink the claim to "FL helps F3; effect on Parihaka unresolved".
 
 CAVEAT (must state): seed variance is LARGE. F3-solo = 0.516 (seed0) vs 0.399 (seed1) = 0.117 spread;
 FL F3 = 0.536 vs 0.498. So individual Delta_s are within seed noise (~0.1). The DIRECTION (FL helps F3,
@@ -864,12 +883,13 @@ PER-CLASS IoU (the survey's own 6 classes; Parihaka classes shown 6-11 in the un
   -> Per-class CONFIRMS the asymmetry: FL raises most F3 classes (esp. seed1) and lowers most Parihaka
      classes (only one Parihaka class improves). The per-class Delta is the honest granularity.
 
-INTERPRETATION (keep the claim small): this is a boundary/negative result for personalization -- at matched
-size, cross-survey FL does not give a clean parity or a gain; it helps the survey whose features the shared
-body favours and hurts the other. It does NOT support "FL helps when sizes are matched". The defensible
-claim: "at matched size and with the train/test buffer fixed, cross-survey FL shifted utility toward F3 and
-away from Parihaka (Delta_F3 > 0, Delta_Pari < 0); with 2 seeds and ~0.1 seed noise this is a directional
-observation, not a settled effect." Pari-solo seed1 to be folded in when its training finishes.
+INTERPRETATION (keep the claim small): a boundary/negative result for personalization -- at matched size,
+cross-survey FL does not give a clean parity or a gain; it shows POSITIVE transfer to F3 and NEGATIVE
+transfer to Parihaka (asymmetric per-survey effect). It does NOT support "FL helps when sizes are matched".
+The defensible claim (advisor-approved): "at matched size and with the train/test buffer fixed, cross-survey
+FL showed an asymmetric per-survey effect (Delta_F3 > 0, Delta_Pari < 0); with 2 seeds and ~0.1 seed noise
+this is a directional observation, not a settled effect." Parihaka-solo seed1 to be folded in when its
+training finishes (its sign decides whether the Parihaka half of the claim stands).
 
 OPEN (advisor consult pending): given the disagreeing signs + large seed noise, decide whether the thesis
 reports this as (a) "FL is asymmetric at matched size" (the honest read), or (b) drops the parity claim and
