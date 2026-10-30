@@ -58,6 +58,16 @@
 > values exceed 1, so report both their trajectory and this saturation rather
 > than assuming an adaptive interior solution. `history.jsonl`'s FedHCA2 global
 > score is a placeholder, not a valid deployed-model score.
+>
+> **Round-5 update:** all three effective encoder weights have been at 1 since
+> round 2. Of 36 decoder weights, 11 were at the upper bound, 0 at the lower
+> bound, and 25 in the interior; the upper-bound count for rounds 1–5 was
+> 0/2/6/9/11. All logged raw values were finite. The advisor recommends finishing
+> this seed rather than stopping based on saturation or interim accuracy;
+> interpret it as a saturated-weight pilot, with the checkpoint timing caveat.
+> Although the data-gradient through the clamp is zero outside [0,1], momentum
+> and weight decay can still move raw weights; do not assume they can never
+> return to the interval.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
