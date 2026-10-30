@@ -46,6 +46,14 @@ tracked=(fedseismic/config.py fedseismic/experiment.py fedseismic/federated/serv
 git ls-files --error-unmatch "${tracked[@]}" >/dev/null
 git diff --quiet HEAD -- "${tracked[@]}"
 
+# Preserve any partial or previously completed corrected rerun. Restarting an
+# interrupted sweep in the same directory would mix old and new round logs.
+for arm in parity_fl parity_f3_solo parity_pari_solo; do
+  if [[ -e "results/runs/${arm}_fixed" ]]; then
+    echo "Refusing to overwrite existing results/runs/${arm}_fixed" >&2
+    exit 1
+  fi
+done
 config_dir=$(mktemp -d /tmp/opencode/parity_fixed.XXXXXX)
 for seed in 0 1; do
   for arm in parity_fl parity_f3_solo parity_pari_solo; do

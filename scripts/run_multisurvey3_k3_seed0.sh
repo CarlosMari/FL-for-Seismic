@@ -66,6 +66,11 @@ for arm in fedhca2 fedpersurvey solo_a solo_b solo_c; do
     echo "Using completed FedHCA2 restart: $FEDHCA2_OUTPUT_ROOT"
     continue
   fi
+  root="results/runs/multisurvey3_k3_${arm}"
+  if [[ -d "$root" ]] && [[ -z "$(find "$root" -path '*/seed_0/results.json' -type f -print -quit)" ]]; then
+    echo "Refusing to append to incomplete existing run root $root" >&2
+    exit 1
+  fi
   original="configs/sweeps/multisurvey3_k3_${arm}.json"
   config="$config_dir/${arm}.json"
   .venv/bin/python - "$original" "$config" <<'PY'
