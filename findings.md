@@ -17,6 +17,26 @@
 > kernel log. Do not present this as a completed experiment, overwrite its files,
 > or infer a hardware fault from the interruption alone.
 
+> **INTERRUPTION RESEARCH (30 Oct 2026):** Advisor review confirms a faithful
+> resume is not possible: the last complete per-client set was overwritten in
+> part by round 8, and the aggregator's prior updates, optimizer momentum and
+> RNG states were not checkpointed. The client-0 file loads on CPU, but is not
+> a round-7 snapshot. The latest completed history entry is round 7; these
+> interim local means are diagnostic, not completed or matched final results.
+> Client 0's latest file was written at 19:53:32 UTC; the process was absent
+> when checked at 20:39 UTC, but the exact stop time and cause are unknown.
+> The host had not rebooted, and inspected kernel logs showed no OOM killer or
+> NVIDIA Xid event. Tool-managed job logs were unavailable, so a process-level
+> exception or external termination cannot be ruled out. No queue is active.
+> While the job ran the RTX 3090 reported 92°C, 100% requested fan speed and
+> active software thermal slowdown; its reported maximum operating temperature
+> was 93°C. This confirms throttling, not the cause of the interruption or
+> hardware damage. Memory temperature was unavailable. NVIDIA documents the
+> throttle signal and that fan speed is a requested value, not proof of actual
+> fan rotation: https://docs.nvidia.com/deploy/nvidia-smi/index.html.
+> Any restart should use a new output directory, durable stderr/exit logs and
+> tested full round-boundary checkpoints, after the cooling issue is assessed.
+
 > **CRITICAL PARITY AUDIT (30 Oct 2026):** All six two-survey parity runs
 > used a defective `aggregate_survey_heads`: the 4-D convolutional classifier
 > weight is treated as a bias and each class row is averaged to a scalar after
