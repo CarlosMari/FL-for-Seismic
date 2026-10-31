@@ -67,7 +67,9 @@ for arm in fedhca2 fedpersurvey solo_a solo_b solo_c; do
     continue
   fi
   root="results/runs/multisurvey3_k3_${arm}"
-  if [[ -d "$root" ]] && [[ -z "$(find "$root" -path '*/seed_0/results.json' -type f -print -quit)" ]]; then
+  live_seed0=$(find "$root" -path '*/seed_0/results.json' -type f -print -quit 2>/dev/null)
+  partial_seed0=$(find "$root" -path '*/seed_0/history.jsonl' -type f -print -quit 2>/dev/null)
+  if [[ -n "$partial_seed0" && -z "$live_seed0" ]]; then
     echo "Refusing to append to incomplete existing run root $root" >&2
     exit 1
   fi
