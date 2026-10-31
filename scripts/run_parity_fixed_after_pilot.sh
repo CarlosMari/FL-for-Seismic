@@ -55,7 +55,8 @@ for arm in parity_fl parity_f3_solo parity_pari_solo; do
   fi
 done
 config_dir=$(mktemp -d /tmp/opencode/parity_fixed.XXXXXX)
-for seed in 0 1; do
+seeds=${PARITY_SEEDS:-0}
+for seed in $seeds; do
   for arm in parity_fl parity_f3_solo parity_pari_solo; do
     config="$config_dir/${arm}_seed${seed}.json"
     .venv/bin/python - "configs/sweeps/${arm}.json" "$config" "$seed" <<'PY'

@@ -94,6 +94,10 @@ class TestFedHCA2Checkpoint(unittest.TestCase):
             "multisurvey3_k3_fedhca2_restart_s0.json", "multisurvey3_k3_fedhca2_hlr1e4_s0.json")]
         self.assertEqual([s["seeds"] for s in sweeps], [[0], [0]])
         self.assertNotEqual(sweeps[0]["output_root"], sweeps[1]["output_root"])
+        # Dated decision 2026-10-31: exploratory variant runs 17 rounds (thermal
+        # limits); the control stays at 20. Scores across budgets are not comparable.
+        self.assertEqual(sweeps[0]["num_rounds"], 20)
+        self.assertEqual(sweeps[1]["num_rounds"], 17)
 
     def test_interrupted_resume_matches_uninterrupted(self):
         with tempfile.TemporaryDirectory() as directory:

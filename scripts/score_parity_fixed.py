@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -19,8 +20,9 @@ def main():
     parser.add_argument("--out-dir", default="results/tables")
     args = parser.parse_args()
     summaries, details = [], []
+    seeds = [int(s) for s in os.environ.get("PARITY_SEEDS", "0 1").split()]
     for arm in ARMS:
-        for seed in (0, 1):
+        for seed in seeds:
             matches = list((Path("results/runs") / arm).glob(f"*/seed_{seed}"))
             if len(matches) != 1 or not (matches[0] / "results.json").is_file():
                 raise RuntimeError(f"expected one completed run for {arm}, seed {seed}")
@@ -51,7 +53,7 @@ def main():
     frame = pd.DataFrame(summaries)
     for survey, solo in (("F3", "parity_f3_solo_fixed"),
                          ("Parihaka", "parity_pari_solo_fixed")):
-        for seed in (0, 1):
+        for seed in seeds:
             fl = frame[(frame.arm == "parity_fl_fixed") & (frame.seed == seed) & (frame.survey == survey)]
             baseline = frame[(frame.arm == solo) & (frame.seed == seed) & (frame.survey == survey)]
             if len(fl) != 1 or len(baseline) != 1:

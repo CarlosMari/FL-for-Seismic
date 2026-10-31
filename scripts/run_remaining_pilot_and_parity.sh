@@ -9,4 +9,9 @@ export PYTHONUNBUFFERED=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 bash scripts/run_multisurvey3_k3_seed0.sh
-bash scripts/run_parity_fixed_after_pilot.sh 0
+PARITY_SEEDS=0 bash scripts/run_parity_fixed_after_pilot.sh 0
+# Exploratory 17-round lower-hyper-LR arm (dated note 2026-10-31 in findings.md):
+# saturation check only, not comparable to 20-round arms.
+.venv/bin/python -m fedseismic.cli sweep \
+  --config configs/sweeps/multisurvey3_k3_fedhca2_hlr1e4_s0.json \
+  --device cuda --skip-attack

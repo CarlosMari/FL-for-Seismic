@@ -117,6 +117,16 @@
 > Do not tune on the holdout or claim an improvement from saturation alone.
 > The lower-rate variant is not automatically run before the control is reviewed.
 >
+> **DATED DECISION (31 Oct 2026, before launch, per advisor):** The exploratory
+> lower-rate arm runs **17 rounds** (thermal limits); the control and all pilot
+> comparisons stay at **20**. The only base-config difference between the arms
+> is `fedhca2_hyper_lr` (0.01 vs 0.0001); the round budgets differ by sweep
+> override. No score from the 17-round arm will be compared against any
+> 20-round arm. Its stopping rule is fixed: stop at round 17 whatever the
+> curves show. The corrected parity rerun launches with **seed 0 only**
+> (`PARITY_SEEDS=0`); seed 1 follows later. Both decisions pre-date any
+> corrected-parity or variant results.
+>
 > **RESTART (30 Oct 2026):** The original-rate control was restarted at
 > 21:06 UTC, seed 0, in `results/runs/multisurvey3_k3_fedhca2_restart_s0`.
 > The interrupted seven-round directory is preserved. The restart records
