@@ -16,6 +16,13 @@
 > interruption is unknown; no OOM or NVIDIA Xid was found in the inspected
 > kernel log. Do not present this as a completed experiment, overwrite its files,
 > or infer a hardware fault from the interruption alone.
+>
+> **LATER INTERRUPTION EVIDENCE:** OpenCode subsequently reported that the
+> old tool-managed pilot wrapper and its monitors were cancelled because the
+> OpenCode server restarted. This is direct evidence of cancellation associated
+> with that restart, though it does not rule out a separate contributing cause.
+> The replacement was started in a detached, monitored process with durable
+> logs rather than relying solely on tool-managed background jobs.
 
 > **INTERRUPTION RESEARCH (30 Oct 2026):** Advisor review confirms a faithful
 > resume is not possible: the last complete per-client set was overwritten in
@@ -132,6 +139,15 @@
 > the current package. This verifies the saved file's contents and readability;
 > it is not a full real-data interruption-and-resume test. That equivalence was
 > tested on synthetic CPU and small CUDA runs only.
+>
+> **RESTART COMPLETED (31 Oct 2026, 07:11 UTC):** The 20-round seed-0
+> FedHCA2-style control completed and has final personal states and a round-20
+> checkpoint. At round 20 all three effective encoder hyperweights were 1;
+> among the 36 decoder hyperweights, 19 were at the upper bound, 4 at the lower
+> bound, and 13 in the interior. All logged raw values were finite. The global
+> score in its history/results is a placeholder, not a deployed-model score.
+> The corrected three-survey comparison is running; do not claim a relative
+> benefit until its final per-survey and per-class scores are available.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
