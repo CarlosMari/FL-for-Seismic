@@ -158,6 +158,17 @@
 > score in its history/results is a placeholder, not a deployed-model score.
 > The corrected three-survey comparison is running; do not claim a relative
 > benefit until its final per-survey and per-class scores are available.
+>
+> **QUEUE INTERRUPTION (1 Nov 2026, ~04:05 UTC):** The corrected fedpersurvey
+> baseline finished all 20 rounds (`results.json`: deployed local mean 0.687,
+> worst 0.446 — far above its 0.01 training-time history values, confirming
+> that history metric is measured with placeholder BN and is not the deployed
+> score). The whole detached queue then vanished with no error in any log and
+> no OOM trace — same pattern as the earlier tool-server restart. The finished
+> baseline was kept; its solo arms had not started. Relaunched detached at
+> ~06:10 UTC after verifying the GPU idle at 47°C; the pilot script correctly
+> skipped the finished baseline cell. A CPU rescore of the baseline's saved
+> personal states is running for per-survey/per-class numbers.
 
 > **NAMING NOTE (Oct 2026) — read before citing any "FedLC" row below.**
 > The method labelled **"FedLC"** throughout these notes is NOT FedLC (Zhang et al., ICML 2022).
