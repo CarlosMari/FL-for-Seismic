@@ -62,6 +62,23 @@
 > training, but 534,099 class-5 pixels in the held-out test. Thus the earlier
 > statement that class 5 was present in F3 training, based on `pi.json`, was
 > wrong. This mismatch is also a reason the solo scores can be low.
+>
+> **ZERO-FURTHER-TRAINING DECISION (1 Nov 2026, per advisor):** No further GPU
+> training is strictly necessary. The thesis is defended on completed runs +
+> CPU rescores, with narrowed claims and the concessions below. Solo Penobscot
+> was never started: the harm claim is restated as "no reliable gain, degraded
+> F3 and Parihaka relative to solo" (F3: FL 0.444 vs solo 0.617; Parihaka: FL
+> 0.288 vs solo 0.645 provisional) with NO statement about FL's effect on
+> Penobscot (0.827 under FL, undetermined direction). The 0.989 BN re-ID figure
+> is verified to come from F3-only FedAvg runs (plain averaging) reading
+> per-client BN statistics from upload logs — unaffected by the survey-head
+> aggregator bug. Old parity runs are withdrawn as evidence (aggregator bug +
+> wrong metadata); the negative result rests on the conservative argument that
+> FL saw more data yet scored lower. Mandatory concessions: single-seed
+> headlines; provisional 19/20 Parihaka solo; no solo Penobscot; no valid
+> size-matched parity; saturated FedHCA2 weights reported as control; dropped
+> 2nd Penobscot-collapse seed; method renames (LA, FedRoD-variant,
+> FedVLS-inspired) stated in text.
 
 > **FEDHCA2-STYLE HEAD CHECK (30 Oct 2026):** The interrupted three-survey arm
 > used the generic server aggregation path and restored each client's own head
