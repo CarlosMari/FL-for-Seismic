@@ -1,7 +1,7 @@
 {
   "base": "configs/seismic_multisurvey_rot.json",
   "output_root": "results/runs/multisurvey_fedavg_rot",
-  "num_rounds": 20,
+  "num_rounds": 12,
   "seeds": [
     0
   ],
