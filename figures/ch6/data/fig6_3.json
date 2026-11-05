@@ -1,0 +1,94 @@
+{
+ "n3": {
+  "absent_pairs": [
+   [
+    "A",
+    "Zechstein"
+   ],
+   [
+    "B",
+    "Zechstein"
+   ]
+  ],
+  "bias_max_abs_centered": 0.033689141273498535
+ },
+ "n5": {
+  "absent_pairs": [
+   [
+    "A",
+    "Zechstein"
+   ],
+   [
+    "B",
+    "Zechstein"
+   ],
+   [
+    "C",
+    "Zechstein"
+   ]
+  ],
+  "bias_max_abs_centered": 0.026685160398483277
+ },
+ "pooled_n3": {
+  "n_runs": 12,
+  "n_jobs": 4,
+  "pairs": 216,
+  "negatives": 24,
+  "sign_balanced_acc": 0.7239583333333334,
+  "tpr": 0.4479166666666667,
+  "tnr": 1.0,
+  "base_rate": 0.8888888888888888
+ },
+ "pooled_n5": {
+  "n_runs": 12,
+  "n_jobs": 4,
+  "pairs": 360,
+  "negatives": 36,
+  "sign_balanced_acc": 0.7530864197530864,
+  "tpr": 0.5061728395061729,
+  "tnr": 1.0,
+  "base_rate": 0.9
+ },
+ "per_job_within": [
+  {
+   "job": "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   "bias": 0.5121832042153097,
+   "row": -0.3324136605518493
+  },
+  {
+   "job": "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   "bias": 0.5699678692833384,
+   "row": -0.29119076411697153
+  },
+  {
+   "job": "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   "bias": 0.6145937444930266,
+   "row": -0.4073927206732247
+  },
+  {
+   "job": "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   "bias": 0.6420606511215619,
+   "row": -0.3711822895206203
+  },
+  {
+   "job": "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   "bias": 0.5030715497164605,
+   "row": -0.3322954935929863
+  },
+  {
+   "job": "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   "bias": 0.540131646538327,
+   "row": -0.24830056403655218
+  },
+  {
+   "job": "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   "bias": 0.36054263539317954,
+   "row": -0.4080676268269265
+  },
+  {
+   "job": "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   "bias": 0.5702811877083102,
+   "row": -0.46180020169431585
+  }
+ ]
+}

@@ -1,0 +1,47 @@
+{
+ "scores": {
+  "bn_batches_c0": 70,
+  "bn_batches_c1": 71,
+  "bn_batches_c2": 79,
+  "bn_batches_c3": 79,
+  "a_c0_masked": 0.32380689782912797,
+  "a_c0_unmasked": 0.3238067715202522,
+  "b_c0_masked": 0.8572979143083452,
+  "b_c0_unmasked": 0.8566468841659095,
+  "c_c0_masked": 0.9170906367091207,
+  "c_c0_unmasked": 0.9170906367091207,
+  "a_c1_masked": 0.2876247915443662,
+  "a_c1_unmasked": 0.28763319731334946,
+  "b_c1_masked": 0.5221567150740974,
+  "b_c1_unmasked": 0.5230861331077746,
+  "c_c1_masked": 0.4355065382717707,
+  "c_c1_unmasked": 0.4355065382717707,
+  "a_c2_masked": 0.1655602146550895,
+  "a_c2_unmasked": 0.0003111710472575999,
+  "b_c2_masked": 0.7929116066455633,
+  "b_c2_unmasked": 0.7811557246854176,
+  "c_c2_masked": 0.7270811034394221,
+  "c_c2_unmasked": 0.7270811034394221,
+  "a_c3_masked": 0.15193132286335154,
+  "a_c3_unmasked": 0.00038323691207989063,
+  "b_c3_masked": 0.6366709489490258,
+  "b_c3_unmasked": 0.6309073683700074,
+  "c_c3_masked": 0.8102615984450926,
+  "c_c3_unmasked": 0.8102615984450926
+ },
+ "picks": {
+  "pari": {
+   "client": 2,
+   "crossline": 346,
+   "n_holdout": 78,
+   "section_miou_b": 0.7926180289321891
+  },
+  "f3": {
+   "client": 0,
+   "crossline": 336,
+   "n_holdout": 70,
+   "section_miou_b": 0.844173769950455
+  }
+ },
+ "survey_b_seismic": "datasets/parihaka/parihaka_data_train.npz"
+}

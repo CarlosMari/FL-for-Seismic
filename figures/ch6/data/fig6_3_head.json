@@ -1,0 +1,296 @@
+{
+ "n_pairs": 576,
+ "n_absent": 60,
+ "absent_below_zero": 60,
+ "present_above_zero_frac": 0.4844961240310077,
+ "within_pearson_per_job": {
+  "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm": 0.5121832042153097,
+  "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm": 0.5699678692833386,
+  "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm": 0.6145937444930266,
+  "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm": 0.6420606511215617,
+  "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm": 0.5030715497164605,
+  "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm": 0.5401316465383269,
+  "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm": 0.36054263539317954,
+  "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm": 0.5702811877083102
+ },
+ "present_above_zero_by_facies": {
+  "U. North Sea": [
+   35,
+   96
+  ],
+  "M. North Sea": [
+   56,
+   96
+  ],
+  "L. North Sea": [
+   33,
+   96
+  ],
+  "Rijnland/Chalk": [
+   35,
+   96
+  ],
+  "Scruff": [
+   55,
+   96
+  ],
+  "Zechstein": [
+   36,
+   36
+  ]
+ },
+ "absent_by_facies": {
+  "U. North Sea": 0,
+  "M. North Sea": 0,
+  "L. North Sea": 0,
+  "Rijnland/Chalk": 0,
+  "Scruff": 0,
+  "Zechstein": 60
+ },
+ "per_facies_r": [
+  [
+   "U. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.623901028778493
+  ],
+  [
+   "M. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.9727884927050394
+  ],
+  [
+   "L. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   -0.5764978280770731
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.41202827002260084
+  ],
+  [
+   "Scruff",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.8498973903578652
+  ],
+  [
+   "Zechstein",
+   "fedavg_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.7909818715049324
+  ],
+  [
+   "U. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.39880147623093
+  ],
+  [
+   "M. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.9722024193709489
+  ],
+  [
+   "L. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   -0.2530653060927843
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.5752530064675584
+  ],
+  [
+   "Scruff",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.8987009606951771
+  ],
+  [
+   "Zechstein",
+   "fedavg_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.827914659028201
+  ],
+  [
+   "U. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.5320582405332502
+  ],
+  [
+   "M. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.7578968296187087
+  ],
+  [
+   "L. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   -0.065364862708682
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.8156101258468526
+  ],
+  [
+   "Scruff",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.8193338321958341
+  ],
+  [
+   "Zechstein",
+   "fedavg_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.8280283014721956
+  ],
+  [
+   "U. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.18888067923636215
+  ],
+  [
+   "M. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.7981705138744142
+  ],
+  [
+   "L. North Sea",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.5299922465383755
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.6672215831453141
+  ],
+  [
+   "Scruff",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.7658321757469828
+  ],
+  [
+   "Zechstein",
+   "fedavg_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.9022667081879218
+  ],
+  [
+   "U. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.6071284533598911
+  ],
+  [
+   "M. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.9511299389611049
+  ],
+  [
+   "L. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   -0.5278652244782741
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.348223727115908
+  ],
+  [
+   "Scruff",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.8396163455471788
+  ],
+  [
+   "Zechstein",
+   "fedbn_noniid_a0.1_lNA_dna_n3_batchnorm",
+   0.8001960577929534
+  ],
+  [
+   "U. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.4384490133004238
+  ],
+  [
+   "M. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.9849159140366318
+  ],
+  [
+   "L. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   -0.2222212125401013
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.41351838958725834
+  ],
+  [
+   "Scruff",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.8100890517912569
+  ],
+  [
+   "Zechstein",
+   "fedbn_noniid_a0.1_lNA_dna_n3_groupnorm",
+   0.8160387230544922
+  ],
+  [
+   "U. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.21566766002503326
+  ],
+  [
+   "M. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.08764180276958794
+  ],
+  [
+   "L. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   -0.42302690780669716
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.6836480407474361
+  ],
+  [
+   "Scruff",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.7430914306155644
+  ],
+  [
+   "Zechstein",
+   "fedbn_noniid_a0.1_lNA_dna_n5_batchnorm",
+   0.8562337860081527
+  ],
+  [
+   "U. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.12242192891582211
+  ],
+  [
+   "M. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.6746091971841109
+  ],
+  [
+   "L. North Sea",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.47961420443227576
+  ],
+  [
+   "Rijnland/Chalk",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.598495055785622
+  ],
+  [
+   "Scruff",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.6937665701204159
+  ],
+  [
+   "Zechstein",
+   "fedbn_noniid_a0.1_lNA_dna_n5_groupnorm",
+   0.8527801698116143
+  ]
+ ],
+ "positive_r": [
+  42,
+  48
+ ]
+}
